@@ -5,27 +5,439 @@ output:
     keep_md: true
 date: "2026-03-24"
 ---
+This code is to merge polling station (PS) level election data and mergefiles from 2009 and 2014 with census indicators, SHRUG data, migration data, political party data, and survey data from 2009 and 2014. 
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r Load libraries, message = FALSE}
+library(tidyverse)
+library(foreign)
+library(xtable)
+library(haven)
 ```
 
-## R Markdown
+```{r Jensenius et al. Code to merge PS-level election data and mergefiles with 2009 census indicators}
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+# Merge PS-level data (2009)
+fileshere <- list.files("data/jensenius_et_al/PSdata_2009",
+                        pattern = ".csv",
+                        recursive = TRUE,
+                        full.names = TRUE
+                        )
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+for (h in 1:length(fileshere)) {
+  onefile <- read.csv(fileshere[h])
+  
+  if (h == 1) {
+    PSdata_2009 <- onefile
+  } else {
+    PSdata_2009 <- rbind(PSdata_2009, onefile)
+  }
+}
 
-```{r cars}
-summary(cars)
+# Generate summary statistics
+dim(PSdata_2009)
+summary(PSdata_2009)
+
+# Collapse main and auxiliary PS booths to allow merge
+sum(duplicated(paste(PSdata_2009$State_no2011, PSdata_2009$PC_no, PSdata_2009$AC_no, PSdata_2009$PS_id)))
+table(PSdata_2009$PS_id)
+
+# Strip PS-numbers of spaces and letters
+PSdata_2009$PS_id<-gsub("\\s","", PSdata_2009$PS_id)
+PSdata_2009$PS_id<-gsub("\u00A0","", PSdata_2009$PS_id)
+PSdata_2009$PS_id<-gsub("[[:punct:]]","", PSdata_2009$PS_id)
+PSdata_2009$PS_id<-gsub("[[:alpha:]]","", PSdata_2009$PS_id)
+PSdata_2009$PS_id<-as.integer(as.character(PSdata_2009$PS_id))
+
+table(PSdata_2009$PS_id)
+sum(duplicated(paste(PSdata_2009$State_no2011, PSdata_2009$PC_no, PSdata_2009$AC_no, PSdata_2009$PS_id)))
+
+sum.rm.na.logical <- function(x){
+    # sums logical vector, treating NA's as 0 unless all NA the NA is returned      
+    res <- if(all(is.na(x))) NA else sum(x, na.rm=T) 
+    return(res)
+}
+
+### Collapse data 
+dim(PSdata_2009)
+PSdata_2009new <- aggregate(PSdata_2009[,c(7:51)], 
+                            by = list(
+                              PSdata_2009$State_no2011, PSdata_2009$PC_no, 
+                              PSdata_2009$PC_name, PSdata_2009$AC_no,
+                              PSdata_2009$AC_name, PSdata_2009$PS_id
+                              ), 
+                            sum.rm.na.logical)
+
+dim(PSdata_2009new)
+names(PSdata_2009new) <- names(PSdata_2009)
+summary(PSdata_2009new)
+table(PSdata_2009new$PS_id)
+
+# Merge the 2009 mergefiles
+fileshere <- list.files("data/jensenius_et_al/Mergefiles_2009", 
+                        pattern = ".csv", 
+                        recursive = TRUE, 
+                        full.names = TRUE)
+
+for (h in 1:length(fileshere)) {
+  onefile <- read.csv(fileshere[h])
+  
+  if (h == 1) {
+    merge_2009 <- onefile
+    } else {
+      merge_2009 <- rbind(merge_2009, onefile)	
+    }
+}
+
+# Generate mergefile summary statistics
+summary(merge_2009$PS_id)
+
+# Create a join key
+merge_2009$uniquePS <- paste(merge_2009$State_no2011, merge_2009$AC_no, merge_2009$PS_id,
+                             sep = "_")
+PSdata_2009$uniquePS <- paste(PSdata_2009$State_no2011, PSdata_2009$AC_no, PSdata_2009$PS_id, 
+                              sep = "_")
+PSdata_2009new$uniquePS <- paste(PSdata_2009new$State_no2011, PSdata_2009new$AC_no, PSdata_2009new$PS_id, 
+                              sep="_")
+
+# PS in the mergefile as a percentage of PS from the 2009 data
+sum(PSdata_2009$uniquePS %in% merge_2009$uniquePS)/length(PSdata_2009$uniquePS)
+
+# Merge election data and mergefiles
+dim(PSdata_2009new)
+length(unique(PSdata_2009new$uniquePS)) # There should be no duplicates, the data was already collapsed to the PS level
+
+dim(merge_2009)
+length(unique(merge_2009$uniquePS)) # There should be duplicates, as a PS can match several villages and vice versa
+
+sum(!(PSdata_2009new$uniquePS %in% merge_2009$uniquePS)) # Are there some PSs missing from the merge file?
+
+sum(!(merge_2009$uniquePS %in% PSdata_2009new$uniquePS)) # Are there some PSs missing from the election data? (These are missing ACs in the raw data)
+
+elec_09 <- merge(merge_2009, PSdata_2009new[,-c(1, 3:6)], 
+                 by = "uniquePS", all.x=F, all.y=F) # Keep merged rows only
+
+# Create a variable coding the number of PSs per census unit
+elec_09$PSs <- ifelse(!is.na(elec_09$Vill_no2011),
+                         1, # Default: one village, one PS
+                         NA)
+
+# Identify how many villages share a PS for cases where villages share a PS
+PSs <- elec_09$uniquePS[duplicated(elec_09$uniquePS)] # Identify duplicated PSs
+PSs <- unique(PSs)
+if (length(grep("NA", PSs)) > 0) {
+  PSs <- PSs[-grep("NA", PSs)]
+}
+
+for (i in 1:length(PSs)) {
+  thecases <- elec_09[elec_09$uniquePS == PSs[i],]
+  thecases <- thecases[!duplicated(thecases$Vill_no2011),]
+  elec_09$PSs[elec_09$uniquePS == PSs[i]] <- 1/dim(thecases)[1]
+  print(i)
+}
+
+# Identify thge number of PSs in villages or towns with multiple PSs
+elec_09$unique_vill <- ifelse(
+  is.na(elec_09$Vill_no2011),
+  NA_character_,
+  paste(elec_09$State_no2011, elec_09$District_no2011, elec_09$Block_no2011, elec_09$Vill_no2011,
+        sep = "_")
+)
+
+vill <- elec_09$unique_vill[duplicated(elec_09$unique_vill)] # Identify duplicated villages
+vill <- unique(na.omit(vill))
+
+for (i in 1:length(vill)) {
+  thecases <- elec_09[elec_09$unique_vill == vill[i],]
+  thecases <- thecases[!duplicated(thecases$uniquePS),]
+  thecases <- thecases[!is.na(thecases$uniquePS),]
+  elec_09$PSs[elec_09$unique_vill == vill[i]] <- dim(thecases)[1]
+  print(i)
+}
+
+# Create a data set at the census unit level by dividing votes equally between villages (for multiple villages to a PS)
+# vill <- unique(elec_09$unique_vill)
+# vill <- vill[!is.na(vill)]
+vill <- na.omit(unique(elec_09$unique_vill))
+
+for (i in 1:length(vill)) {
+  rows <- which(elec_09$unique_vill == vill[i])
+
+  if (elec_09$PSs[rows][1] < 1) {
+    elec_09[rows, 12:57] <- elec_09[rows, 12:57] * elec_09$PSs[rows]
+
+  } else if (elec_09$PSs[rows][1] > 1) {
+    thecases <- elec_09[rows, ]
+    elec_09[rows[1], 12:57] <- colSums(thecases[, 12:57], na.rm = TRUE)
+  }
+
+  print(i)
+}
+
+# Remove duplicated census entries
+cens_elec_09 <- elec_09[!duplicated(elec_09$unique_vill) & complete.cases(elec_09$unique_vill),]
+
+names(cens_elec_09)
+head(cens_elec_09)		
+	
+summary(cens_elec_09$PSs)
+prop.table(table(cens_elec_09$PSs > 1))
+prop.table(table(cens_elec_09$PSs < 1))
+prop.table(table(cens_elec_09$PSs == 1))
+
 ```
 
-## Including Plots
+```{r Jensenius et al. Code to merge PS-level election data and mergefiles with 2014 census indicators}
 
-You can also embed plots, for example:
+# Merge PS-level data (2014)
+fileshere <- list.files("data/jensenius_et_al/PSdata_2014",
+                        pattern = ".csv",
+                        recursive = TRUE,
+                        full.names = TRUE
+                        )
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+for (h in 1:length(fileshere)) {
+  onefile <- read.csv(fileshere[h])
+  
+  if (h == 1) {
+    PSdata_2014 <- onefile
+  } else {
+    PSdata_2014 <- rbind(PSdata_2014, onefile)
+  }
+}
+
+# Generate summary statistics
+dim(PSdata_2014)
+summary(PSdata_2014)
+
+# Collapse main and auxiliary PS booths to allow merge
+sum(duplicated(paste(PSdata_2014$State_no2011, PSdata_2014$PC_no, PSdata_2014$AC_no, PSdata_2014$PS_id)))
+table(PSdata_2014$PS_id)
+
+# Strip PS-numbers of spaces and letters
+PSdata_2014$PS_id<-gsub(":00","", PSdata_2014$PS_id)
+PSdata_2014$PS_id<-gsub("\\s","", PSdata_2014$PS_id)
+PSdata_2014$PS_id<-gsub("\u00A0","", PSdata_2014$PS_id)
+PSdata_2014$PS_id<-gsub("[[:punct:]]","", PSdata_2014$PS_id)
+PSdata_2014$PS_id<-gsub("[[:alpha:]]","", PSdata_2014$PS_id)
+PSdata_2014$PS_id<-as.integer(as.character(PSdata_2014$PS_id))
+
+table(PSdata_2014$PS_id)
+sum(duplicated(paste(PSdata_2014$State_no2011, PSdata_2014$PC_no, PSdata_2014$AC_no, PSdata_2014$PS_id)))
+
+sum.rm.na.logical <- function(x){
+    # sums logical vector, treating NA's as 0 unless all NA the NA is returned      
+    res <- if(all(is.na(x))) NA else sum(x, na.rm=T) 
+    return(res)
+}
+
+### Collapse data 
+dim(PSdata_2014)
+PSdata_2014new <- aggregate(PSdata_2014[,c(7:51)], 
+                            by = list(
+                              PSdata_2014$State_no2011, PSdata_2014$PC_no, 
+                              PSdata_2014$PC_name, PSdata_2014$AC_no,
+                              PSdata_2014$AC_name, PSdata_2014$PS_id
+                              ), 
+                            sum.rm.na.logical)
+
+dim(PSdata_2014new)
+names(PSdata_2014new) <- names(PSdata_2014)
+summary(PSdata_2014new)
+table(PSdata_2014new$PS_id)
+
+# Merge the 2014 mergefiles
+fileshere <- list.files("data/jensenius_et_al/Mergefiles_2014", 
+                        pattern = ".csv", 
+                        recursive = TRUE, 
+                        full.names = TRUE)
+
+for (h in 1:length(fileshere)) {
+  onefile <- read.csv(fileshere[h])
+  
+  if (h == 1) {
+    merge_2014 <- onefile
+    } else {
+      merge_2014 <- rbind(merge_2014, onefile)	
+    }
+}
+
+# Generate mergefile summary statistics
+summary(merge_2014$PS_id)
+
+# Create a join key
+merge_2014$uniquePS <- paste(merge_2014$State_no2011, merge_2014$AC_no, merge_2014$PS_id,
+                             sep = "_")
+PSdata_2014$uniquePS <- paste(PSdata_2014$State_no2011, PSdata_2014$AC_no, PSdata_2014$PS_id, 
+                              sep = "_")
+PSdata_2014new$uniquePS <- paste(PSdata_2014new$State_no2011, PSdata_2014new$AC_no, PSdata_2014new$PS_id, 
+                              sep="_")
+
+# PS in the mergefile as a percentage of PS from the 2009 data
+sum(PSdata_2014$uniquePS %in% merge_2014$uniquePS)/length(PSdata_2014$uniquePS)
+
+# Merge election data and mergefiles
+dim(PSdata_2014new)
+length(unique(PSdata_2014new$uniquePS)) # There should be no duplicates, the data was already collapsed to the PS level
+
+dim(merge_2014)
+length(unique(merge_2014$uniquePS)) # There should be duplicates, as a PS can match several villages and vice versa
+
+sum(!(PSdata_2014new$uniquePS %in% merge_2014$uniquePS)) # Are there some PSs missing from the merge file?
+
+sum(!(merge_2014$uniquePS %in% PSdata_2014new$uniquePS)) # Are there some PSs missing from the election data? (These are missing ACs in the raw data)
+
+elec_14 <- merge(merge_2014, PSdata_2014new[,-c(1, 3:6)], 
+                 by = "uniquePS", all.x=F, all.y=F) # Keep merged rows only
+
+# Create a variable coding the number of PSs per census unit
+elec_14$PSs <- ifelse(!is.na(elec_14$Vill_no2011),
+                         1, # Default: one village, one PS
+                         NA)
+
+# Identify how many villages share a PS for cases where villages share a PS
+PSs <- elec_14$uniquePS[duplicated(elec_14$uniquePS)] # Identify duplicated PSs
+PSs <- unique(PSs)
+if (length(grep("NA", PSs)) > 0) {
+  PSs <- PSs[-grep("NA", PSs)]
+}
+
+for (i in 1:length(PSs)) {
+  thecases <- elec_14[elec_14$uniquePS == PSs[i],]
+  thecases <- thecases[!duplicated(thecases$Vill_no2011),]
+  elec_14$PSs[elec_14$uniquePS == PSs[i]] <- 1/dim(thecases)[1]
+  print(i)
+}
+
+# Identify thge number of PSs in villages or towns with multiple PSs
+elec_14$unique_vill <- ifelse(
+  is.na(elec_14$Vill_no2011),
+  NA_character_,
+  paste(elec_14$State_no2011, elec_14$District_no2011, elec_14$Block_no2011, elec_14$Vill_no2011,
+        sep = "_")
+)
+
+vill <- elec_14$unique_vill[duplicated(elec_14$unique_vill)] # Identify duplicated villages
+vill <- unique(na.omit(vill))
+
+for (i in 1:length(vill)) {
+  thecases <- elec_14[elec_14$unique_vill == vill[i],]
+  thecases <- thecases[!duplicated(thecases$uniquePS),]
+  thecases <- thecases[!is.na(thecases$uniquePS),]
+  elec_14$PSs[elec_14$unique_vill == vill[i]] <- dim(thecases)[1]
+  print(i)
+}
+
+# Create a data set at the census unit level by dividing votes equally between villages (for multiple villages to a PS)
+# vill <- unique(elec_14$unique_vill)
+# vill <- vill[!is.na(vill)]
+vill <- na.omit(unique(elec_14$unique_vill))
+
+for (i in 1:length(vill)) {
+  rows <- which(elec_14$unique_vill == vill[i])
+
+  if (elec_14$PSs[rows][1] < 1) {
+    elec_14[rows, 12:57] <- elec_14[rows, 12:57] * elec_14$PSs[rows]
+
+  } else if (elec_14$PSs[rows][1] > 1) {
+    thecases <- elec_14[rows, ]
+    elec_14[rows[1], 12:57] <- colSums(thecases[, 12:57], na.rm = TRUE)
+  }
+
+  print(i)
+}
+
+# Remove duplicated census entries
+cens_elec_14 <- elec_14[!duplicated(elec_14$unique_vill) & complete.cases(elec_14$unique_vill),]
+
+names(cens_elec_14)
+head(cens_elec_14)		
+	
+summary(cens_elec_14$PSs)
+prop.table(table(cens_elec_14$PSs > 1))
+prop.table(table(cens_elec_14$PSs < 1))
+prop.table(table(cens_elec_14$PSs == 1))
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r Merge 2009 and 2014 files with candidate IDs}
+cens_elec <- cens_elec_09 %>% 
+  left_join(
+    cens_elec_14 %>% 
+      rename_with(~ paste0(.x, "_14"), -uniquePS),
+    by = "uniquePS"
+  )
+
+cand_noUP_09 <- read_csv("data/jensenius_et_al/Candidates_2009/candidate_order2009_noUP.csv")
+cand_UP_09   <- read_csv("data/jensenius_et_al/Candidates_2009/candidate_order2009_UP.csv")
+cand_14      <- read_csv("data/jensenius_et_al/Candidates_2014/candidate_order2014.csv")
+
+state_codes <- function(df) {
+  df %>%
+    mutate(
+      State_no2011 = case_when(
+        State_name == "Andhra Pradesh" ~ 28,
+        State_name == "Bihar" ~ 10,
+        State_name == "Gujarat" ~ 24,
+        State_name == "Himachal Pradesh" ~ 2,
+        State_name == "Jharkhand" ~ 20,
+        State_name == "Madhya Pradesh" ~ 23,
+        State_name == "Punjab" ~ 3,
+        State_name == "Rajasthan" ~ 8,
+        State_name == "Uttar Pradesh" ~ 9,
+        State_name == "Uttarakhand" ~ 5,
+        State_name == "West Bengal" ~ 19,
+        TRUE ~ NA_integer_
+      )
+    )
+}
+
+cand_09 <- bind_rows(cand_noUP_09, cand_UP_09) %>%
+  state_codes() %>% 
+  filter(Cand_party == "BJP") %>% 
+  rename_with(~ paste0(.x, "_09"), -c(State_no2011, PC_id))
+
+cand_14 <- cand_14 %>%
+  state_codes() %>% 
+  filter(Cand_party == "BJP") %>% 
+  rename_with(~ paste0(.x, "_14"), -c(State_no2011, PC_id))
+
+cens_elec_cand <- cens_elec %>% 
+  left_join(cand_09, by = c("State_no2011", "PC_no" = "PC_id")) %>% 
+  left_join(cand_14, by = c("State_no2011", "PC_no" = "PC_id")) %>% 
+  mutate(
+    Cand_no_09 = as.integer(Cand_no_09),
+    Cand_no_14 = as.integer(Cand_no_14),
+
+    bjp_votes_09 = {
+      votes_cand_09 <- as.matrix(select(., matches("^Votes_cand[0-9]+$")))
+      ok <- !is.na(Cand_no_09) & Cand_no_09 >= 1L & Cand_no_09 <= ncol(votes_cand_09)
+      out <- rep(NA_real_, n())
+      out[ok] <- votes_cand_09[cbind(which(ok), Cand_no_09[ok])]
+      out
+    },
+
+    bjp_vote_share_09 = if_else(
+      !is.na(Votes_total) & Votes_total > 0,
+      bjp_votes_09 / Votes_total,
+      NA_real_
+    ),
+
+    bjp_votes_14 = {
+      votes_cand_14 <- as.matrix(select(., matches("^Votes_cand[0-9]+_14$")))
+      ok <- !is.na(Cand_no_14) & Cand_no_14 >= 1L & Cand_no_14 <= ncol(votes_cand_14)
+      out <- rep(NA_real_, n())
+      out[ok] <- votes_cand_14[cbind(which(ok), Cand_no_14[ok])]
+      out
+    },
+
+    bjp_vote_share_14 = if_else(
+      !is.na(Votes_total_14) & Votes_total_14 > 0,
+      bjp_votes_14 / Votes_total_14,
+      NA_real_
+    )
+  )
+```
+
+3. Merge in economic census and population (migration) data
+4. Clean Lokniti data
+5. Merge in Lokniti data and calculate centrism index and far-right vote share for each PS
