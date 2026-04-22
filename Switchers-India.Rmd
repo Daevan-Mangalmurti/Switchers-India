@@ -438,6 +438,102 @@ cens_elec_cand <- cens_elec %>%
   )
 ```
 
+```{r Clean Lokniti data}
+nes_state_recode <- function(x) {
+  case_when(
+    x == 1 ~ 28,   # AP
+    x == 4 ~ 10,   # BH
+    x == 6 ~ 24,   # GJ
+    x == 8 ~ 2,    # HP
+    x == 33 ~ 20,  # JH
+    x == 12 ~ 23,  # MP
+    x == 19 ~ 3,   # PJ
+    x == 20 ~ 8,   # RJ
+    x == 24 ~ 9,   # UP
+    x == 25 ~ 19,  # WB
+    x == 35 ~ 5,   # UK
+    TRUE ~ NA_integer_
+  )
+}
+
+nes_2009 <- read_sav("data/lokniti/nes_2009.sav") %>% 
+  mutate(State_no2011 = nes_state_recode(as.numeric(st_id))) %>% 
+  filter(!is.na(State_no2011)) %>% 
+  mutate(
+    q26a = case_match(q26a, "1" ~ 2, "2" ~ 1, "8" ~ 0, "3" ~ `-1`, "4" ~ `-2`),
+    z_q26a = (q26a - mean(q26a)) / sd(q26a),
+    
+    q27 = case_match(q27, "2" ~ 1, c("7", "8") ~ 0, "1" ~ `-1`),
+    z_q27 = (q27 - mean(q27)) / sd(q27),
+    
+    a4b = case_match(a4b, "4" ~ 2, "3" ~ 1, "8" ~ 0, "2" ~ `-1`, "1" ~ `-2`),
+    z_a4b = (a4b - mean(a4b)) / sd(a4b),
+    
+    a4c = case_match(a4c, "1" ~ 2, "2" ~ 1, "8" ~ 0, "3" ~ `-1`, "4" ~ `-2`),
+    z_a4c = (a4c - mean(a4c)) / sd(a4c),
+    
+    a4d = case_match(a4d, "1" ~ 2, "2" ~ 1, "8" ~ 0, "3" ~ `-1`, "4" ~ `-2`),
+    z_a4d = (a4d - mean(a4d)) / sd(a4d),
+    
+    a4g = case_match(a4g, "4" ~ 2, "3" ~ 1, "8" ~ 0, "2" ~ `-1`, "1" ~ `-2`),
+    z_a4g = (a4g - mean(a4g)) / sd(a4g),
+    
+    a5 = case_match(a5, "2" ~ 1, "8" ~ 0, "1" ~ `-1`),
+    z_a5 = (a5 - mean(a5)) / sd(a5),
+    
+    a6a = case_match(a6a, "2" ~ 1, "8" ~ 0, "1" ~ `-1`),
+    z_a6a = (a6a - mean(a6a)) / sd(a6a),
+    
+    a6b = case_match(a6b, "2" ~ 1, "8" ~ 0, "1" ~ `-1`),
+    z_a6b = (a6b - mean(a6b)) / sd(a6b)
+  )
+
+group_nes_2009 <- nes_2009 %>% 
+  group_by(State_no2011, pc_id, ac_id, ps_id) %>% 
+  summarise(
+    loc_bjp_vote_share_2009 = q1a[2] / sum(q1a),
+    loc_bjp_close_to_2009 = q11a[2] / sum(q11),
+    loc_bjp_never_vote_2009 = q12a[2] / sum(q12),
+    recognition_score_2009 = mean(z_a6a, z_a5, z_a4c, z_a4b),
+    statism_score_2009 = mean(z_a4d, z_a4g, z_q26a, z_a6b, z_q27),
+    mean_econ_trend_2009 = mean(e2[1:5]), # 5 is "much worse"
+    mean_educ_2009 = mean(z5[0:8]), # 8 is professional degree
+    loc_up_caste_share_2009 = (z7a[4] & z8[1, 4, 6]) / sum(z8[1, 4, 6]),
+    loc_h_obc_share_2009 = z7a[3] & z8[1] / sum(z7a),
+    mean_hhi_2009 = mean(z18)
+  )
+
+nes_2014 <- read_sav("data/lokniti/nes_2014.sav") %>% 
+  mutate(State_no2011 = nes_state_recode(as.numeric(state_id))) %>% 
+  filter(!is.na(State_no2011)) %>% 
+  mutate(
+    q10b = case_match(q10b, "1" ~ 2, "2" ~ 1, "8" ~ 0, "3" ~ `-1`, "4" ~ `-2`),
+    z_q10b = (q10b - mean(q10b)) / sd(q10b),
+    
+    q10e = case_match(q10e, "4" ~ 2, "3" ~ 1, "8" ~ 0, "2" ~ `-1`, "1" ~ `-2`),
+    z_q10e = (q10e - mean(q10e)) / sd(q10e),
+    
+    q23c = case_match(q23c, "4" ~ 2, "3" ~ 1, "8" ~ 0, "2" ~ `-1`, "1" ~ `-2`), # this should have been 23d...
+    z_q23c = (q23c - mean(q23c)) / sd(q23c)
+  )
+
+group_nes_2014 <- nes_2014 %>% 
+  group_by(State_no2011, pc_id, ac_id, ps_id) %>% 
+  summarise(
+    loc_bjp_vote_share_2014 = q1a[2] / sum(q1a),
+    loc_bjp_close_to_2014 = q11a[2] / sum(q11),
+    recognition_score_2014 = mean(z_q10b, z_q10e),
+    statism_score_2014 = mean(q23c),
+    mean_educ_2014 = mean(z3[0:8]), # 8 is professional degree
+    loc_up_caste_share_2014 = (z5a[4] & z6[1, 4, 6]) / sum(z6[1, 4, 6]),
+    loc_h_obc_share_2014 = z5a[3] & z6[1] / sum(z5a),
+    mean_hhi_2014 = mean(z13)
+  )
+
+cens_elec_cand_ps <- cens_elec_cand %>% 
+  left_join(group_nes_2009, by = c(State_no2011, AC_no = ac_id, PS_id = ps_id)) %>% 
+  left_join(group_nes_2014, by = c(State_no2011, AC_no = ac_id, PS_id = ps_id))
+
+```
+
 3. Merge in economic census and population (migration) data
-4. Clean Lokniti data
-5. Merge in Lokniti data and calculate centrism index and far-right vote share for each PS
