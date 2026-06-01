@@ -5,24 +5,46 @@ output:
     keep_md: true
 date: "2026-03-24"
 ---
-This code is to merge polling station (PS) level election data and mergefiles from 2009 and 2014 with census indicators, SHRUG data, migration data, political party data, and survey data from 2009 and 2014. 
+This code has been prepared to merge assembly constituency (AC) level election data from 2009 and 2014 with census indicators, SHRUG data, migration data, political party data, and Lokniti data from 2009 to 2014.
 
 ```{r Load libraries, message = FALSE}
 library(tidyverse)
 library(foreign)
 library(xtable)
 library(haven)
+library(sf)
+library(janitor)
+library(broom)
 ```
 
-```{r Jensenius et al. Code to merge PS-level election data and mergefiles with 2009 census indicators}
+```{r Create helper functions for loading data, message = FALSE}
+# Build a helper function for cleaning PC names for use as labels
+clean_constituency_name <- function(x) {
+  x %>%
+    as.character() %>%
+    str_replace_all("\u00A0", " ") %>%          # replace non-breaking spaces
+    str_to_upper() %>%                          # standardize case
+    str_remove_all("\\s*\\((SC|ST)\\)\\s*") %>% # remove (SC) or (ST)
+    str_replace_all("[^A-Z0-9]+", " ") %>%      # standardize punctuation/spaces
+    str_squish()                                # collapse repeated spaces
+}
 
-# Merge PS-level data (2009)
+# Build a helper function to avoid carrying over missing constituency names
+first_nonmissing <- function(x) {
+  x <- x[!is.na(x) & x != ""]
+  if (length(x) == 0) NA_character_ else x[1]
+}
+```
+
+```{r Load and clean 2009 AC voting data, message = FALSE}
+# Load Jensenius et al.'s voting data for 2009
 fileshere <- list.files("data/jensenius_et_al/PSdata_2009",
                         pattern = ".csv",
                         recursive = TRUE,
                         full.names = TRUE
                         )
 
+# Merge state voting data into a single file 
 for (h in 1:length(fileshere)) {
   onefile <- read.csv(fileshere[h])
   
@@ -33,51 +55,37 @@ for (h in 1:length(fileshere)) {
   }
 }
 
-# Generate summary statistics
-dim(PSdata_2009)
-summary(PSdata_2009)
+# Group voting data to the AC level
+ACdata_2009 <- PSdata_2009 %>% 
+  mutate(
+    State_no2011 = as.integer(State_no2011),
+    PC_no = as.integer(PC_no),
+    AC_no = as.integer(AC_no),
+    PC_name = clean_constituency_name(PC_name),
+    AC_name = clean_constituency_name(AC_name)
+  ) %>% 
+  group_by(State_no2011, AC_no) %>% 
+  summarise(
+    PC_no_09 = first_nonmissing(PC_no),
+    PC_name_09 = first_nonmissing(PC_name),
+    AC_name_09 = first_nonmissing(AC_name),
+    across(starts_with("Votes_"), ~ sum(.x, na.rm = TRUE)),
+    .groups = "drop"
+  ) %>% 
+  rename_with(
+    ~ paste0(.x, "_09"),
+    starts_with("Votes_")
+  )
+```
 
-# Collapse main and auxiliary PS booths to allow merge
-sum(duplicated(paste(PSdata_2009$State_no2011, PSdata_2009$PC_no, PSdata_2009$AC_no, PSdata_2009$PS_id)))
-table(PSdata_2009$PS_id)
-
-# Strip PS-numbers of spaces and letters
-PSdata_2009$PS_id<-gsub("\\s","", PSdata_2009$PS_id)
-PSdata_2009$PS_id<-gsub("\u00A0","", PSdata_2009$PS_id)
-PSdata_2009$PS_id<-gsub("[[:punct:]]","", PSdata_2009$PS_id)
-PSdata_2009$PS_id<-gsub("[[:alpha:]]","", PSdata_2009$PS_id)
-PSdata_2009$PS_id<-as.integer(as.character(PSdata_2009$PS_id))
-
-table(PSdata_2009$PS_id)
-sum(duplicated(paste(PSdata_2009$State_no2011, PSdata_2009$PC_no, PSdata_2009$AC_no, PSdata_2009$PS_id)))
-
-sum.rm.na.logical <- function(x){
-    # sums logical vector, treating NA's as 0 unless all NA the NA is returned      
-    res <- if(all(is.na(x))) NA else sum(x, na.rm=T) 
-    return(res)
-}
-
-### Collapse data 
-dim(PSdata_2009)
-PSdata_2009new <- aggregate(PSdata_2009[,c(7:51)], 
-                            by = list(
-                              PSdata_2009$State_no2011, PSdata_2009$PC_no, 
-                              PSdata_2009$PC_name, PSdata_2009$AC_no,
-                              PSdata_2009$AC_name, PSdata_2009$PS_id
-                              ), 
-                            sum.rm.na.logical)
-
-dim(PSdata_2009new)
-names(PSdata_2009new) <- names(PSdata_2009)
-summary(PSdata_2009new)
-table(PSdata_2009new$PS_id)
-
-# Merge the 2009 mergefiles
+```{r Load and clean 2009 AC merge data, message = FALSE}
+# Load 2009 merge files
 fileshere <- list.files("data/jensenius_et_al/Mergefiles_2009", 
                         pattern = ".csv", 
                         recursive = TRUE, 
                         full.names = TRUE)
 
+# Merge 2009 merge files into a single file
 for (h in 1:length(fileshere)) {
   onefile <- read.csv(fileshere[h])
   
@@ -88,113 +96,42 @@ for (h in 1:length(fileshere)) {
     }
 }
 
-# Generate mergefile summary statistics
-summary(merge_2009$PS_id)
-
-# Create a join key
-merge_2009$uniquePS <- paste(merge_2009$State_no2011, merge_2009$AC_no, merge_2009$PS_id,
-                             sep = "_")
-PSdata_2009$uniquePS <- paste(PSdata_2009$State_no2011, PSdata_2009$AC_no, PSdata_2009$PS_id, 
-                              sep = "_")
-PSdata_2009new$uniquePS <- paste(PSdata_2009new$State_no2011, PSdata_2009new$AC_no, PSdata_2009new$PS_id, 
-                              sep="_")
-
-# PS in the mergefile as a percentage of PS from the 2009 data
-sum(PSdata_2009$uniquePS %in% merge_2009$uniquePS)/length(PSdata_2009$uniquePS)
-
-# Merge election data and mergefiles
-dim(PSdata_2009new)
-length(unique(PSdata_2009new$uniquePS)) # There should be no duplicates, the data was already collapsed to the PS level
-
-dim(merge_2009)
-length(unique(merge_2009$uniquePS)) # There should be duplicates, as a PS can match several villages and vice versa
-
-sum(!(PSdata_2009new$uniquePS %in% merge_2009$uniquePS)) # Are there some PSs missing from the merge file?
-
-sum(!(merge_2009$uniquePS %in% PSdata_2009new$uniquePS)) # Are there some PSs missing from the election data? (These are missing ACs in the raw data)
-
-elec_09 <- merge(merge_2009, PSdata_2009new[,-c(1, 3:6)], 
-                 by = "uniquePS", all.x=F, all.y=F) # Keep merged rows only
-
-# Create a variable coding the number of PSs per census unit
-elec_09$PSs <- ifelse(!is.na(elec_09$Vill_no2011),
-                         1, # Default: one village, one PS
-                         NA)
-
-# Identify how many villages share a PS for cases where villages share a PS
-PSs <- elec_09$uniquePS[duplicated(elec_09$uniquePS)] # Identify duplicated PSs
-PSs <- unique(PSs)
-if (length(grep("NA", PSs)) > 0) {
-  PSs <- PSs[-grep("NA", PSs)]
-}
-
-for (i in 1:length(PSs)) {
-  thecases <- elec_09[elec_09$uniquePS == PSs[i],]
-  thecases <- thecases[!duplicated(thecases$Vill_no2011),]
-  elec_09$PSs[elec_09$uniquePS == PSs[i]] <- 1/dim(thecases)[1]
-  print(i)
-}
-
-# Identify thge number of PSs in villages or towns with multiple PSs
-elec_09$unique_vill <- ifelse(
-  is.na(elec_09$Vill_no2011),
-  NA_character_,
-  paste(elec_09$State_no2011, elec_09$District_no2011, elec_09$Block_no2011, elec_09$Vill_no2011,
-        sep = "_")
-)
-
-vill <- elec_09$unique_vill[duplicated(elec_09$unique_vill)] # Identify duplicated villages
-vill <- unique(na.omit(vill))
-
-for (i in 1:length(vill)) {
-  thecases <- elec_09[elec_09$unique_vill == vill[i],]
-  thecases <- thecases[!duplicated(thecases$uniquePS),]
-  thecases <- thecases[!is.na(thecases$uniquePS),]
-  elec_09$PSs[elec_09$unique_vill == vill[i]] <- dim(thecases)[1]
-  print(i)
-}
-
-# Create a data set at the census unit level by dividing votes equally between villages (for multiple villages to a PS)
-# vill <- unique(elec_09$unique_vill)
-# vill <- vill[!is.na(vill)]
-vill <- na.omit(unique(elec_09$unique_vill))
-
-for (i in 1:length(vill)) {
-  rows <- which(elec_09$unique_vill == vill[i])
-
-  if (elec_09$PSs[rows][1] < 1) {
-    elec_09[rows, 12:57] <- elec_09[rows, 12:57] * elec_09$PSs[rows]
-
-  } else if (elec_09$PSs[rows][1] > 1) {
-    thecases <- elec_09[rows, ]
-    elec_09[rows[1], 12:57] <- colSums(thecases[, 12:57], na.rm = TRUE)
-  }
-
-  print(i)
-}
-
-# Remove duplicated census entries
-cens_elec_09 <- elec_09[!duplicated(elec_09$unique_vill) & complete.cases(elec_09$unique_vill),]
-
-names(cens_elec_09)
-head(cens_elec_09)		
-	
-summary(cens_elec_09$PSs)
-prop.table(table(cens_elec_09$PSs > 1))
-prop.table(table(cens_elec_09$PSs < 1))
-prop.table(table(cens_elec_09$PSs == 1))
-
+# Group voting data to the AC level and calculate the number of voters
+ACmerge_2009 <- merge_2009 %>% 
+  mutate(
+    State_no2011 = as.integer(State_no2011),
+    AC_no = as.integer(AC_no),
+    District_name2011 = clean_constituency_name(District_name2011),
+    AC_name = clean_constituency_name(AC_name)
+  ) %>% 
+  group_by(State_no2011, AC_no) %>% 
+  summarise(
+    Electors_09 = sum(Electors, na.rm = TRUE),
+    District_no2011_09 = first_nonmissing(District_no2011),
+    District_name2011_09 = first_nonmissing(District_name2011),
+    AC_name_09 = first_nonmissing(AC_name),
+    .groups = "drop"
+  )
 ```
 
-```{r Jensenius et al. Code to merge PS-level election data and mergefiles with 2014 census indicators}
+```{r Merge 2009 voting and merge files}
+elec_09 <- ACdata_2009 %>% 
+  left_join(
+    ACmerge_2009,
+    by = c("State_no2011", "AC_no"),
+    relationship = "one-to-one"
+  )
+```
 
-# Merge PS-level data (2014)
+```{r Load and clean 2014 AC voting data, message = FALSE}
+# Load Jensenius et al.'s voting data for 2014
 fileshere <- list.files("data/jensenius_et_al/PSdata_2014",
                         pattern = ".csv",
                         recursive = TRUE,
                         full.names = TRUE
                         )
 
+# Merge state voting data into a single file 
 for (h in 1:length(fileshere)) {
   onefile <- read.csv(fileshere[h])
   
@@ -205,52 +142,37 @@ for (h in 1:length(fileshere)) {
   }
 }
 
-# Generate summary statistics
-dim(PSdata_2014)
-summary(PSdata_2014)
+# Group voting data to the AC level
+ACdata_2014 <- PSdata_2014 %>% 
+  mutate(
+    State_no2011 = as.integer(State_no2011),
+    PC_no = as.integer(PC_no),
+    AC_no = as.integer(AC_no),
+    PC_name = clean_constituency_name(PC_name),
+    AC_name = clean_constituency_name(AC_name)
+  ) %>% 
+  group_by(State_no2011, AC_no) %>% 
+  summarise(
+    PC_no_14 = first_nonmissing(PC_no),
+    PC_name_14 = first_nonmissing(PC_name),
+    AC_name_14 = first_nonmissing(AC_name),
+    across(starts_with("Votes_"), ~ sum(.x, na.rm = TRUE)),
+    .groups = "drop"
+  ) %>% 
+  rename_with(
+    ~ paste0(.x, "_14"),
+    starts_with("Votes_")
+  )
+```
 
-# Collapse main and auxiliary PS booths to allow merge
-sum(duplicated(paste(PSdata_2014$State_no2011, PSdata_2014$PC_no, PSdata_2014$AC_no, PSdata_2014$PS_id)))
-table(PSdata_2014$PS_id)
-
-# Strip PS-numbers of spaces and letters
-PSdata_2014$PS_id<-gsub(":00","", PSdata_2014$PS_id)
-PSdata_2014$PS_id<-gsub("\\s","", PSdata_2014$PS_id)
-PSdata_2014$PS_id<-gsub("\u00A0","", PSdata_2014$PS_id)
-PSdata_2014$PS_id<-gsub("[[:punct:]]","", PSdata_2014$PS_id)
-PSdata_2014$PS_id<-gsub("[[:alpha:]]","", PSdata_2014$PS_id)
-PSdata_2014$PS_id<-as.integer(as.character(PSdata_2014$PS_id))
-
-table(PSdata_2014$PS_id)
-sum(duplicated(paste(PSdata_2014$State_no2011, PSdata_2014$PC_no, PSdata_2014$AC_no, PSdata_2014$PS_id)))
-
-sum.rm.na.logical <- function(x){
-    # sums logical vector, treating NA's as 0 unless all NA the NA is returned      
-    res <- if(all(is.na(x))) NA else sum(x, na.rm=T) 
-    return(res)
-}
-
-### Collapse data 
-dim(PSdata_2014)
-PSdata_2014new <- aggregate(PSdata_2014[,c(7:51)], 
-                            by = list(
-                              PSdata_2014$State_no2011, PSdata_2014$PC_no, 
-                              PSdata_2014$PC_name, PSdata_2014$AC_no,
-                              PSdata_2014$AC_name, PSdata_2014$PS_id
-                              ), 
-                            sum.rm.na.logical)
-
-dim(PSdata_2014new)
-names(PSdata_2014new) <- names(PSdata_2014)
-summary(PSdata_2014new)
-table(PSdata_2014new$PS_id)
-
-# Merge the 2014 mergefiles
+```{r Load and clean 2014 AC merge data, message = FALSE}
+# Load 2014 merge files
 fileshere <- list.files("data/jensenius_et_al/Mergefiles_2014", 
                         pattern = ".csv", 
                         recursive = TRUE, 
                         full.names = TRUE)
 
+# Merge 2014 merge files into a single file
 for (h in 1:length(fileshere)) {
   onefile <- read.csv(fileshere[h])
   
@@ -261,116 +183,45 @@ for (h in 1:length(fileshere)) {
     }
 }
 
-# Generate mergefile summary statistics
-summary(merge_2014$PS_id)
-
-# Create a join key
-merge_2014$uniquePS <- paste(merge_2014$State_no2011, merge_2014$AC_no, merge_2014$PS_id,
-                             sep = "_")
-PSdata_2014$uniquePS <- paste(PSdata_2014$State_no2011, PSdata_2014$AC_no, PSdata_2014$PS_id, 
-                              sep = "_")
-PSdata_2014new$uniquePS <- paste(PSdata_2014new$State_no2011, PSdata_2014new$AC_no, PSdata_2014new$PS_id, 
-                              sep="_")
-
-# PS in the mergefile as a percentage of PS from the 2009 data
-sum(PSdata_2014$uniquePS %in% merge_2014$uniquePS)/length(PSdata_2014$uniquePS)
-
-# Merge election data and mergefiles
-dim(PSdata_2014new)
-length(unique(PSdata_2014new$uniquePS)) # There should be no duplicates, the data was already collapsed to the PS level
-
-dim(merge_2014)
-length(unique(merge_2014$uniquePS)) # There should be duplicates, as a PS can match several villages and vice versa
-
-sum(!(PSdata_2014new$uniquePS %in% merge_2014$uniquePS)) # Are there some PSs missing from the merge file?
-
-sum(!(merge_2014$uniquePS %in% PSdata_2014new$uniquePS)) # Are there some PSs missing from the election data? (These are missing ACs in the raw data)
-
-elec_14 <- merge(merge_2014, PSdata_2014new[,-c(1, 3:6)], 
-                 by = "uniquePS", all.x=F, all.y=F) # Keep merged rows only
-
-# Create a variable coding the number of PSs per census unit
-elec_14$PSs <- ifelse(!is.na(elec_14$Vill_no2011),
-                         1, # Default: one village, one PS
-                         NA)
-
-# Identify how many villages share a PS for cases where villages share a PS
-PSs <- elec_14$uniquePS[duplicated(elec_14$uniquePS)] # Identify duplicated PSs
-PSs <- unique(PSs)
-if (length(grep("NA", PSs)) > 0) {
-  PSs <- PSs[-grep("NA", PSs)]
-}
-
-for (i in 1:length(PSs)) {
-  thecases <- elec_14[elec_14$uniquePS == PSs[i],]
-  thecases <- thecases[!duplicated(thecases$Vill_no2011),]
-  elec_14$PSs[elec_14$uniquePS == PSs[i]] <- 1/dim(thecases)[1]
-  print(i)
-}
-
-# Identify thge number of PSs in villages or towns with multiple PSs
-elec_14$unique_vill <- ifelse(
-  is.na(elec_14$Vill_no2011),
-  NA_character_,
-  paste(elec_14$State_no2011, elec_14$District_no2011, elec_14$Block_no2011, elec_14$Vill_no2011,
-        sep = "_")
-)
-
-vill <- elec_14$unique_vill[duplicated(elec_14$unique_vill)] # Identify duplicated villages
-vill <- unique(na.omit(vill))
-
-for (i in 1:length(vill)) {
-  thecases <- elec_14[elec_14$unique_vill == vill[i],]
-  thecases <- thecases[!duplicated(thecases$uniquePS),]
-  thecases <- thecases[!is.na(thecases$uniquePS),]
-  elec_14$PSs[elec_14$unique_vill == vill[i]] <- dim(thecases)[1]
-  print(i)
-}
-
-# Create a data set at the census unit level by dividing votes equally between villages (for multiple villages to a PS)
-# vill <- unique(elec_14$unique_vill)
-# vill <- vill[!is.na(vill)]
-vill <- na.omit(unique(elec_14$unique_vill))
-
-for (i in 1:length(vill)) {
-  rows <- which(elec_14$unique_vill == vill[i])
-
-  if (elec_14$PSs[rows][1] < 1) {
-    elec_14[rows, 12:57] <- elec_14[rows, 12:57] * elec_14$PSs[rows]
-
-  } else if (elec_14$PSs[rows][1] > 1) {
-    thecases <- elec_14[rows, ]
-    elec_14[rows[1], 12:57] <- colSums(thecases[, 12:57], na.rm = TRUE)
-  }
-
-  print(i)
-}
-
-# Remove duplicated census entries
-cens_elec_14 <- elec_14[!duplicated(elec_14$unique_vill) & complete.cases(elec_14$unique_vill),]
-
-names(cens_elec_14)
-head(cens_elec_14)		
-	
-summary(cens_elec_14$PSs)
-prop.table(table(cens_elec_14$PSs > 1))
-prop.table(table(cens_elec_14$PSs < 1))
-prop.table(table(cens_elec_14$PSs == 1))
-
+# Group voting data to the AC level and calculate the number of voters
+ACmerge_2014 <- merge_2014 %>% 
+  mutate(
+    State_no2011 = as.integer(State_no2011),
+    AC_no = as.integer(AC_no),
+    District_name2011 = clean_constituency_name(District_name2011),
+    AC_name = clean_constituency_name(AC_name)
+  ) %>% 
+  group_by(State_no2011, AC_no) %>% 
+  summarise(
+    Electors_14 = sum(Electors, na.rm = TRUE),
+    District_no2011_14 = first_nonmissing(District_no2011),
+    District_name2011_14 = first_nonmissing(District_name2011),
+    AC_name_14 = first_nonmissing(AC_name),
+    .groups = "drop"
+  )
 ```
 
-```{r Merge 2009 and 2014 files with candidate IDs}
-cens_elec <- cens_elec_09 %>% 
+```{r Merge 2014 voting and merge files}
+elec_14 <- ACdata_2014 %>% 
   left_join(
-    cens_elec_14 %>% 
-      rename_with(~ paste0(.x, "_14"), -uniquePS),
-    by = "uniquePS"
+    ACmerge_2014,
+    by = c("State_no2011", "AC_no"),
+    relationship = "one-to-one"
   )
+```
 
+```{r Merge 2009 and 2014 election files}
+elec <- elec_09 %>% 
+  left_join(elec_14, by = c("State_no2011", "AC_no"))
+```
+
+```{r Load candidate data and clean state IDs, message = FALSE}
+# Load candidate information files
 cand_noUP_09 <- read_csv("data/jensenius_et_al/Candidates_2009/candidate_order2009_noUP.csv")
 cand_UP_09   <- read_csv("data/jensenius_et_al/Candidates_2009/candidate_order2009_UP.csv")
 cand_14      <- read_csv("data/jensenius_et_al/Candidates_2014/candidate_order2014.csv")
 
+# Assign state codes to states in the data
 state_codes <- function(df) {
   df %>%
     mutate(
@@ -390,55 +241,122 @@ state_codes <- function(df) {
       )
     )
 }
+```
 
-cand_09 <- bind_rows(cand_noUP_09, cand_UP_09) %>%
-  state_codes() %>% 
-  filter(Cand_party == "BJP") %>% 
-  rename_with(~ paste0(.x, "_09"), -c(State_no2011, PC_id))
+```{r Create a far-right candidate lookup}
+fr_parties <- c("BJP", "SHS")
 
-cand_14 <- cand_14 %>%
-  state_codes() %>% 
-  filter(Cand_party == "BJP") %>% 
-  rename_with(~ paste0(.x, "_14"), -c(State_no2011, PC_id))
+fr_lookup <- function(cand_df, year, party_col = "Cand_party") {
+  cand_df %>% 
+    state_codes() %>% 
+    mutate(
+      Cand_no = as.integer(Cand_no)
+    ) %>% 
+    filter(.data[[party_col]] %in% fr_parties) %>% 
+    group_by(State_no2011, PC_id) %>% 
+    summarise(
+      fr_cand = as.integer(n() > 0),
+      fr_cand_nos = list(sort(unique(Cand_no[!is.na(Cand_no)]))),
+      .groups = "drop"
+    ) %>% 
+    rename(
+      !!paste0("fr_cand_", year) := fr_cand,
+      !!paste0("fr_cand_nos_", year) := fr_cand_nos
+    )
+}
+```
 
-cens_elec_cand <- cens_elec %>% 
-  left_join(cand_09, by = c("State_no2011", "PC_no" = "PC_id")) %>% 
-  left_join(cand_14, by = c("State_no2011", "PC_no" = "PC_id")) %>% 
+```{r Extract far-right candidate IDs}
+fr_cands_09 <- bind_rows(cand_noUP_09, cand_UP_09) %>% 
+  fr_lookup(year = "09", party_col = "Cand_party")
+
+fr_cands_14 <- cand_14 %>% 
+  fr_lookup(year = "14", party_col = "Cand_party")
+```
+
+```{r Define vote summation}
+sum_candidate_votes <- function(df, cand_list_col, vote_suffix) {
+  
+  cand_lists <- df[[cand_list_col]]
+  out <- rep(NA_real_, nrow(df))
+  
+  for (i in seq_len(nrow(df))) {
+    
+    cand_nos <- cand_lists[[i]]
+    
+    if (is.null(cand_nos) || length(cand_nos) == 0 || all(is.na(cand_nos))) {
+      out[i] <- 0
+      next
+    }
+    
+    vote_cols <- paste0("Votes_cand", cand_nos, vote_suffix)
+    vote_cols <- vote_cols[vote_cols %in% names(df)]
+    
+    if (length(vote_cols) == 0) {
+      out[i] <- NA_real_
+      next
+    }
+    
+    vals <- unlist(df[i, vote_cols], use.names = FALSE)
+    out[i] <- sum(vals, na.rm = TRUE)
+  }
+  
+  out
+}
+```
+
+```{r Join candidate files with election data}
+elec_cand <- elec %>%
+  left_join(
+    fr_cands_09,
+    by = c("State_no2011", "PC_no_09" = "PC_id"),
+    relationship = "many-to-one"
+  ) %>%
+  left_join(
+    fr_cands_14,
+    by = c("State_no2011", "PC_no_14" = "PC_id"),
+    relationship = "many-to-one"
+  ) %>%
   mutate(
-    Cand_no_09 = as.integer(Cand_no_09),
-    Cand_no_14 = as.integer(Cand_no_14),
+    fr_cands_09 = coalesce(fr_cand_09, 0L),
+    fr_cands_14 = coalesce(fr_cand_14, 0L)
+  )
 
-    bjp_votes_09 = {
-      votes_cand_09 <- as.matrix(select(., matches("^Votes_cand[0-9]+$")))
-      ok <- !is.na(Cand_no_09) & Cand_no_09 >= 1L & Cand_no_09 <= ncol(votes_cand_09)
-      out <- rep(NA_real_, n())
-      out[ok] <- votes_cand_09[cbind(which(ok), Cand_no_09[ok])]
-      out
-    },
+elec_cand$fr_votes_09 <- sum_candidate_votes(
+  elec_cand,
+  cand_list_col = "fr_cand_nos_09",
+  vote_suffix = "_09"
+)
 
-    bjp_vote_share_09 = if_else(
-      !is.na(Votes_total) & Votes_total > 0,
-      bjp_votes_09 / Votes_total,
+elec_cand$fr_votes_14 <- sum_candidate_votes(
+  elec_cand,
+  cand_list_col = "fr_cand_nos_14",
+  vote_suffix = "_14"
+)
+
+elec_cand <- elec_cand %>%
+  mutate(
+    fr_vote_share_09 = if_else(
+      !is.na(Votes_total_09) & Votes_total_09 > 0,
+      fr_votes_09 / Votes_total_09,
       NA_real_
     ),
-
-    bjp_votes_14 = {
-      votes_cand_14 <- as.matrix(select(., matches("^Votes_cand[0-9]+_14$")))
-      ok <- !is.na(Cand_no_14) & Cand_no_14 >= 1L & Cand_no_14 <= ncol(votes_cand_14)
-      out <- rep(NA_real_, n())
-      out[ok] <- votes_cand_14[cbind(which(ok), Cand_no_14[ok])]
-      out
-    },
-
-    bjp_vote_share_14 = if_else(
+    
+    fr_vote_share_14 = if_else(
       !is.na(Votes_total_14) & Votes_total_14 > 0,
-      bjp_votes_14 / Votes_total_14,
+      fr_votes_14 / Votes_total_14,
+      NA_real_
+    ),
+    
+    fr_vote_share_change = if_else(
+      is.finite(fr_vote_share_09) & is.finite(fr_vote_share_14),
+      fr_vote_share_14 - fr_vote_share_09,
       NA_real_
     )
   )
 ```
 
-```{r Clean Lokniti data}
+```{r Establish Lokniti state recoding}
 nes_state_recode <- function(x) {
   case_when(
     x == 1 ~ 28,   # AP
@@ -455,85 +373,1324 @@ nes_state_recode <- function(x) {
     TRUE ~ NA_integer_
   )
 }
+```
 
+```{r Add a helper for safe Lokniti z-score computation}
+safe_z <- function(x) {
+  x <- as.numeric(x)
+  m <- mean(x, na.rm = TRUE)
+  s <- sd(x, na.rm = TRUE)
+  
+  if (is.na(s) || s == 0) {
+    return(rep(NA_real_, length(x)))
+  }
+  
+  (x - m) / s
+}
+```
+
+```{r Clean 2009 Lokniti data, message = FALSE}
 nes_2009 <- read_sav("data/lokniti/nes_2009.sav") %>% 
   mutate(State_no2011 = nes_state_recode(as.numeric(st_id))) %>% 
   filter(!is.na(State_no2011)) %>% 
   mutate(
-    q26a = case_match(q26a, "1" ~ 2, "2" ~ 1, "8" ~ 0, "3" ~ `-1`, "4" ~ `-2`),
-    z_q26a = (q26a - mean(q26a)) / sd(q26a),
+    q26a = case_match(q26a, 1 ~ 2, 2 ~ 1, 8 ~ 0, 3 ~ -1, 4 ~ -2),
+    q27 = case_match(q27, 2 ~ 1, c(7, 8) ~ 0, 1 ~ -1),
+    a4b = case_match(a4b, 4 ~ 2, 3 ~ 1, 8 ~ 0, 2 ~ -1, 1 ~ -2),
+    a4c = case_match(a4c, 1 ~ 2, 2 ~ 1, 8 ~ 0, 3 ~ -1, 4 ~ -2),
+    a4d = case_match(a4d, 1 ~ 2, 2 ~ 1, 8 ~ 0, 3 ~ -1, 4 ~ -2),
+    a4g = case_match(a4g, 4 ~ 2, 3 ~ 1, 8 ~ 0, 2 ~ -1, 1 ~ -2),
+    a5 = case_match(a5, 2 ~ 1, 8 ~ 0, 1 ~ -1),
+    a6a = case_match(a6a, 2 ~ 1, 8 ~ 0, 1 ~ -1),
+    a6b = case_match(a6b, 2 ~ 1, 8 ~ 0, 1 ~ -1),
     
-    q27 = case_match(q27, "2" ~ 1, c("7", "8") ~ 0, "1" ~ `-1`),
-    z_q27 = (q27 - mean(q27)) / sd(q27),
-    
-    a4b = case_match(a4b, "4" ~ 2, "3" ~ 1, "8" ~ 0, "2" ~ `-1`, "1" ~ `-2`),
-    z_a4b = (a4b - mean(a4b)) / sd(a4b),
-    
-    a4c = case_match(a4c, "1" ~ 2, "2" ~ 1, "8" ~ 0, "3" ~ `-1`, "4" ~ `-2`),
-    z_a4c = (a4c - mean(a4c)) / sd(a4c),
-    
-    a4d = case_match(a4d, "1" ~ 2, "2" ~ 1, "8" ~ 0, "3" ~ `-1`, "4" ~ `-2`),
-    z_a4d = (a4d - mean(a4d)) / sd(a4d),
-    
-    a4g = case_match(a4g, "4" ~ 2, "3" ~ 1, "8" ~ 0, "2" ~ `-1`, "1" ~ `-2`),
-    z_a4g = (a4g - mean(a4g)) / sd(a4g),
-    
-    a5 = case_match(a5, "2" ~ 1, "8" ~ 0, "1" ~ `-1`),
-    z_a5 = (a5 - mean(a5)) / sd(a5),
-    
-    a6a = case_match(a6a, "2" ~ 1, "8" ~ 0, "1" ~ `-1`),
-    z_a6a = (a6a - mean(a6a)) / sd(a6a),
-    
-    a6b = case_match(a6b, "2" ~ 1, "8" ~ 0, "1" ~ `-1`),
-    z_a6b = (a6b - mean(a6b)) / sd(a6b)
+    z_q26a = safe_z(q26a),
+    z_q27  = safe_z(q27),
+    z_a4b  = safe_z(a4b),
+    z_a4c  = safe_z(a4c),
+    z_a4d  = safe_z(a4d),
+    z_a4g  = safe_z(a4g),
+    z_a5   = safe_z(a5),
+    z_a6a  = safe_z(a6a),
+    z_a6b  = safe_z(a6b)
   )
 
-group_nes_2009 <- nes_2009 %>% 
-  group_by(State_no2011, pc_id, ac_id, ps_id) %>% 
+bjp_codes <- c(2, 46, 91)
+
+vote_share <- function(vote, condition, codes = bjp_codes) {
+  x <- vote[condition & !is.na(condition)]
+  
+  if (length(x) == 0) {
+    return(NA_real_)
+  }
+  
+  mean(if_else(is.na(x), NA, x %in% codes), na.rm = TRUE)
+}
+
+nes_2009_scored <- nes_2009 %>%
+  mutate(
+    recognition_score = rowMeans(
+      pick(z_a6a, z_a5, z_a4c, z_a4b),
+      na.rm = TRUE
+    ),
+    statism_score = rowMeans(
+      pick(z_a4d, z_a4g, z_q26a, z_a6b, z_q27),
+      na.rm = TRUE
+    ),
+    recognition_score = if_else(is.nan(recognition_score), NA_real_, recognition_score),
+    statism_score = if_else(is.nan(statism_score), NA_real_, statism_score)
+  )
+
+group_nes_2009 <- nes_2009_scored %>% 
+  group_by(State_no2011, ac_id) %>% 
   summarise(
-    loc_bjp_vote_share_2009 = q1a[2] / sum(q1a),
-    loc_bjp_close_to_2009 = q11a[2] / sum(q11),
-    loc_bjp_never_vote_2009 = q12a[2] / sum(q12),
-    recognition_score_2009 = mean(z_a6a, z_a5, z_a4c, z_a4b),
-    statism_score_2009 = mean(z_a4d, z_a4g, z_q26a, z_a6b, z_q27),
-    mean_econ_trend_2009 = mean(e2[1:5]), # 5 is "much worse"
-    mean_educ_2009 = mean(z5[0:8]), # 8 is professional degree
-    loc_up_caste_share_2009 = (z7a[4] & z8[1, 4, 6]) / sum(z8[1, 4, 6]),
-    loc_h_obc_share_2009 = z7a[3] & z8[1] / sum(z7a),
-    mean_hhi_2009 = mean(z18)
+    loc_bjp_vote_share_2009 = vote_share(q1a, TRUE),
+    loc_bjp_close_to_2009 = vote_share(q11a, TRUE),
+    loc_bjp_never_vote_2009 = vote_share(q12a, TRUE),
+    
+    recognition_score_2009 = mean(recognition_score, na.rm = TRUE),
+    statism_score_2009 = mean(statism_score, na.rm = TRUE),
+    
+    mean_econ_trend_2009 = mean(e2, na.rm = TRUE),
+    mean_educ_2009 = mean(z5, na.rm = TRUE),
+    
+    loc_up_caste_share_2009 = sum(z7a == 4 & z8 %in% c(1, 4, 6), na.rm = TRUE) / 
+      sum(!is.na(z7a) & !is.na(z8)),
+    
+    loc_h_obc_share_2009 = sum(z7a == 3 & z8 == 1, na.rm = TRUE) / 
+      sum(!is.na(z7a) & !is.na(z8)),
+    
+    mean_hhi_2009 = mean(z18, na.rm = TRUE),
+    
+    loc_bjp_mod_vote_share_2009 = vote_share(
+      q1a,
+      recognition_score > -0.25 & recognition_score < 0.25 &
+        statism_score > -0.25 & statism_score < 0.25
+    ),
+    
+    loc_bjp_right_vote_share_2009 = vote_share(
+      q1a,
+      recognition_score > 0.25 &
+        statism_score > 0.25
+    ),
+    
+    loc_bjp_left_vote_share_2009 = vote_share(
+      q1a,
+      recognition_score < -0.25 &
+        statism_score < -0.25
+    ),
+    
+    .groups = "drop"
+  ) %>% 
+  mutate(
+    State_no2011 = as.integer(State_no2011),
+    ac_id = as.integer(ac_id)
   )
+```
 
+```{r Clean 2014 Lokniti data, message = FALSE}
 nes_2014 <- read_sav("data/lokniti/nes_2014.sav") %>% 
   mutate(State_no2011 = nes_state_recode(as.numeric(state_id))) %>% 
   filter(!is.na(State_no2011)) %>% 
   mutate(
-    q10b = case_match(q10b, "1" ~ 2, "2" ~ 1, "8" ~ 0, "3" ~ `-1`, "4" ~ `-2`),
+    q10b = case_match(q10b, 1 ~ 2, 2 ~ 1, 8 ~ 0, 3 ~ -1, 4 ~ -2),
     z_q10b = (q10b - mean(q10b)) / sd(q10b),
     
-    q10e = case_match(q10e, "4" ~ 2, "3" ~ 1, "8" ~ 0, "2" ~ `-1`, "1" ~ `-2`),
+    q10e = case_match(q10e, 4 ~ 2, 3 ~ 1, 8 ~ 0, 2 ~ -1, 1 ~ -2),
     z_q10e = (q10e - mean(q10e)) / sd(q10e),
     
-    q23c = case_match(q23c, "4" ~ 2, "3" ~ 1, "8" ~ 0, "2" ~ `-1`, "1" ~ `-2`), # this should have been 23d...
+    q23c = case_match(q23c, 4 ~ 2, 3 ~ 1, 8 ~ 0, 2 ~ -1, 1 ~ -2), # this should have been 23d...
     z_q23c = (q23c - mean(q23c)) / sd(q23c)
   )
 
-group_nes_2014 <- nes_2014 %>% 
-  group_by(State_no2011, pc_id, ac_id, ps_id) %>% 
-  summarise(
-    loc_bjp_vote_share_2014 = q1a[2] / sum(q1a),
-    loc_bjp_close_to_2014 = q11a[2] / sum(q11),
-    recognition_score_2014 = mean(z_q10b, z_q10e),
-    statism_score_2014 = mean(q23c),
-    mean_educ_2014 = mean(z3[0:8]), # 8 is professional degree
-    loc_up_caste_share_2014 = (z5a[4] & z6[1, 4, 6]) / sum(z6[1, 4, 6]),
-    loc_h_obc_share_2014 = z5a[3] & z6[1] / sum(z5a),
-    mean_hhi_2014 = mean(z13)
+nes_2014_scored <- nes_2014 %>%
+  mutate(
+    recognition_score = rowMeans(
+      pick(z_q10b, z_q10e),
+      na.rm = TRUE
+    ),
+    statism_score = q23c,
+    
+    recognition_score = if_else(is.nan(recognition_score), NA_real_, recognition_score),
+    statism_score = if_else(is.nan(statism_score), NA_real_, statism_score)
   )
 
-cens_elec_cand_ps <- cens_elec_cand %>% 
-  left_join(group_nes_2009, by = c(State_no2011, AC_no = ac_id, PS_id = ps_id)) %>% 
-  left_join(group_nes_2014, by = c(State_no2011, AC_no = ac_id, PS_id = ps_id))
+group_nes_2014 <- nes_2014_scored %>% 
+  group_by(State_no2011, ac_id) %>% 
+  summarise(
+    loc_bjp_vote_share_2014 = vote_share(q1a, TRUE),
+    loc_bjp_close_to_2014 = vote_share(q11a, TRUE),
+    
+    recognition_score_2014 = mean(recognition_score, na.rm = TRUE),
+    statism_score_2014 = mean(statism_score, na.rm = TRUE),
+    
+    mean_educ_2014 = mean(z3, na.rm = TRUE),
+    
+    loc_up_caste_share_2014 = sum(z5a == 4 & z6 %in% c(1, 4, 6), na.rm = TRUE) / 
+      sum(!is.na(z5a) & !is.na(z6)),
+    
+    loc_h_obc_share_2014 = sum(z5a == 3 & z6 == 1, na.rm = TRUE) / 
+      sum(!is.na(z5a) & !is.na(z6)),
+    
+    mean_hhi_2014 = mean(z13, na.rm = TRUE),
+    
+    loc_bjp_mod_vote_share_2014 = vote_share(
+      q1a,
+      recognition_score > -0.25 & recognition_score < 0.25 &
+        statism_score > -0.25 & statism_score < 0.25
+    ),
+    
+    loc_bjp_right_vote_share_2014 = vote_share(
+      q1a,
+      recognition_score > 0.25 &
+        statism_score > 0.25
+    ),
+    
+    loc_bjp_left_vote_share_2014 = vote_share(
+      q1a,
+      recognition_score < -0.25 &
+        statism_score < -0.25
+    ),
+    
+    .groups = "drop"
+  ) %>% 
+  mutate(
+    State_no2011 = as.integer(State_no2011),
+    ac_id = as.integer(ac_id)
+  )
+```
+
+```{r Join 2009 and 2014 Lokniti data to main data file}
+elec_cand_nes <- elec_cand %>% 
+  left_join(group_nes_2009, by = c("State_no2011", "AC_no" = "ac_id")) %>% 
+  left_join(group_nes_2014, by = c("State_no2011", "AC_no" = "ac_id"))
+
+# Remove unnecessary columns
+elec_cand_nes <- elec_cand_nes %>% 
+  select(c(State_no2011, AC_no, PC_no_09, PC_name_09, AC_name_09.x, Votes_total_09,
+         Electors_09, District_no2011_09, District_name2011_09, PC_no_14,
+         PC_name_14, AC_name_14.x, Votes_total_14, Electors_14, District_no2011_14,
+         District_name2011_14, fr_cands_09, fr_cands_14, fr_votes_09, fr_votes_14,
+         fr_vote_share_09, fr_vote_share_14, fr_vote_share_change, 118:135)) %>% 
+  mutate(
+    District_no2011_09 = as.integer(District_no2011_09),
+    District_no2011_14 = as.integer(District_no2011_14),
+    District_no2011 = coalesce(District_no2011_14, District_no2011_09)
+    ) %>% 
+  select(-c(District_no2011_09, District_no2011_14, District_name2011_09))
+```
+
+```{r Merge in EC 2013 and PC 2011 data}
+# Create an object to save 
+ec13_cols <- c(
+  "ec13_emp_all", "ec13_emp_f", "ec13_emp_m", "ec13_emp_gov",
+  "ec13_emp_priv", "ec13_emp_own_m", "ec13_emp_own_f",
+  "ec13_emp_st", "ec13_emp_sc", "ec13_emp_obc"
+)
+
+# Create within-district weights based on each AC's share of the district's total electors
+district_elector_weights <- elec_cand_nes %>%
+  mutate(
+    State_no2011 = as.integer(State_no2011),
+    District_no2011 = as.integer(District_no2011),
+    AC_no = as.integer(AC_no),
+    Electors_14 = as.numeric(Electors_14)
+  ) %>%
+  distinct(State_no2011, District_no2011, AC_no, Electors_14) %>%
+  filter(
+    !is.na(State_no2011),
+    !is.na(District_no2011),
+    !is.na(AC_no)
+  ) %>%
+  group_by(State_no2011, District_no2011) %>%
+  mutate(
+    district_electors_14 = sum(Electors_14, na.rm = TRUE),
+    elector_weight_14 = if_else(
+      !is.na(Electors_14) & district_electors_14 > 0,
+      Electors_14 / district_electors_14,
+      NA_real_
+    )
+  ) %>%
+  ungroup() %>%
+  select(
+    State_no2011,
+    District_no2011,
+    AC_no,
+    Electors_14,
+    district_electors_14,
+    elector_weight_14
+  )
+
+shrug_ec13 <- read_csv(
+  "data/shrug/ec13_pc11dist.csv",
+  show_col_types = FALSE
+) %>% 
+  mutate(
+    pc11_state_id = str_remove(pc11_state_id, "^0+") %>% as.integer(),
+    pc11_district_id = str_remove(pc11_district_id, "^0+") %>% as.integer()
+  ) %>% 
+  select(
+    pc11_state_id,
+    pc11_district_id,
+    all_of(ec13_cols)
+  )
+
+elec_cand_nes_ec <- elec_cand_nes %>% 
+  mutate(
+    State_no2011 = as.integer(State_no2011),
+    District_no2011 = as.integer(District_no2011),
+    AC_no = as.integer(AC_no),
+    Electors_14 = as.numeric(Electors_14)
+  ) %>%
+  left_join(
+    shrug_ec13,
+    by = c(
+      "State_no2011" = "pc11_state_id",
+      "District_no2011" = "pc11_district_id"
+    ),
+    relationship = "many-to-one"
+  ) %>%
+  group_by(State_no2011, District_no2011) %>%
+  mutate(
+    n_acs_in_district = n_distinct(AC_no),
+    district_electors_14 = sum(Electors_14, na.rm = TRUE),
+    
+    elector_weight_14 = case_when(
+      !is.na(Electors_14) & district_electors_14 > 0 ~
+        Electors_14 / district_electors_14,
+      
+      district_electors_14 == 0 & n_acs_in_district > 0 ~
+        1 / n_acs_in_district,
+      
+      TRUE ~ NA_real_
+    )
+  ) %>%
+  ungroup() %>%
+  mutate(
+    across(
+      all_of(ec13_cols),
+      ~ .x * elector_weight_14,
+      .names = "{.col}_ac_alloc"
+    )
+  )
+```
+
+```{r Merge in migration data and impute missing values}
+migra <- list.files(
+  path = "data/migration",
+  pattern = "_2001_2011_merged\\.csv$",
+  full.names = TRUE
+)
+
+migra_cols <- c(
+  "2011_Total_Persons_<1",
+  "2011_Total_Persons_1-4",
+  "2011_Total_Persons_5-9"
+)
+
+dist_migra <- migra %>% 
+  set_names() %>% 
+  map_dfr(\(f) {
+    read_csv(f, show_col_types = FALSE) %>%
+      select(
+        State,
+        `2011_District`,
+        Last_Residence,
+        all_of(migra_cols)
+      ) %>%
+      mutate(
+        State = as.integer(State),
+        `2011_District` = as.integer(`2011_District`)
+      ) %>%
+      filter(
+        Last_Residence == "STATES IN INDIA BEYOND THE STATE OF ENUMERATION",
+        !is.na(`2011_District`),
+        `2011_District` != 0
+      ) %>%
+      group_by(State, `2011_District`) %>%
+      summarise(
+        across(all_of(migra_cols), ~ sum(.x, na.rm = TRUE)),
+        .groups = "drop"
+      )
+  }) %>%
+  group_by(State, `2011_District`) %>%  
+  summarise(
+    across(all_of(migra_cols), ~ sum(.x, na.rm = TRUE)),
+    .groups = "drop"
+  )
+
+elec_cand_nes_ec_m <- elec_cand_nes_ec %>%
+  mutate(
+    State_no2011 = as.integer(State_no2011),
+    District_no2011 = as.integer(District_no2011),
+    AC_no = as.integer(AC_no),
+    Electors_09 = as.numeric(Electors_09)
+  ) %>%
+  left_join(
+    dist_migra,
+    by = c(
+      "State_no2011" = "State",
+      "District_no2011" = "2011_District"
+    ),
+    relationship = "many-to-one"
+  ) %>%
+  replace_na(as.list(setNames(rep(0, length(migra_cols)), migra_cols))) %>%
+  group_by(State_no2011, District_no2011) %>%
+  mutate(
+    n_acs_in_district = n_distinct(AC_no),
+    district_electors_09 = sum(Electors_09, na.rm = TRUE),
+    
+    elector_weight_09 = case_when(
+      !is.na(Electors_09) & district_electors_09 > 0 ~
+        Electors_09 / district_electors_09,
+      
+      district_electors_09 == 0 & n_acs_in_district > 0 ~
+        1 / n_acs_in_district,
+      
+      TRUE ~ NA_real_
+    )
+  ) %>%
+  ungroup() %>%
+  mutate(
+    across(
+      all_of(migra_cols),
+      ~ .x * elector_weight_09,
+      .names = "alloc_{.col}"
+    ),
+    
+    across(
+      starts_with("alloc_2011_Total_Persons"),
+      ~ log1p(.x),
+      .names = "log_{.col}"
+    )
+  )
+
+# Calculate the change in average change in migration between 2009 and 2014
+elec_cand_nes_ec_m <- elec_cand_nes_ec_m %>%
+  mutate(
+    agr_2009 = if_else(
+      `alloc_2011_Total_Persons_5-9` > 0,
+      (`alloc_2011_Total_Persons_1-4` / 4) /
+        (`alloc_2011_Total_Persons_5-9` / 5),
+      NA_real_
+    ),
+    
+    agr_2014 = if_else(
+      `alloc_2011_Total_Persons_1-4` > 0,
+      `alloc_2011_Total_Persons_<1` /
+        (`alloc_2011_Total_Persons_1-4` / 4),
+      NA_real_
+    ),
+    
+    log_agr_2009 = if_else(agr_2009 > 0, log(agr_2009), NA_real_),
+    log_agr_2014 = if_else(agr_2014 > 0, log(agr_2014), NA_real_)
+  )
+```
+
+```{r Read in assembly shape files and assign them to ACs}
+
+# Data come from Susewind 2014
+fileshere <- list.files("data/mapping-indias-elections",
+                        pattern = ".assembly.shp",
+                        recursive = TRUE,
+                        full.names = TRUE
+                        )
+
+for (h in 1:length(fileshere)) {
+  onefile <- read_sf(fileshere[h])
+  
+  if (h == 1) {
+    ac_map <- onefile
+  } else {
+    ac_map <- rbind(ac_map, onefile)
+  }
+}
+
+ac_map <- ac_map %>% 
+  mutate(
+      State_no2011 = case_when(
+        state == "Andhra Pradesh" ~ 28,
+        state == "Bihar" ~ 10,
+        state == "Gujarat" ~ 24,
+        state == "Himachal Pradesh" ~ 2,
+        state == "Jharkhand" ~ 20,
+        state == "Madhya Pradesh" ~ 23,
+        state == "Punjab" ~ 3,
+        state == "Rajasthan" ~ 8,
+        state == "Uttar Pradesh" ~ 9,
+        state == "Uttarakhand" ~ 5,
+        state == "West Bengal" ~ 19,
+        TRUE ~ NA_integer_
+      )
+  ) %>% 
+  select(State_no2011, ac, ac_name, geometry)
+```
+
+```{r Read in FDI data and match sites to ACs}
+fdi_raw <- read_csv("data/IN_FDI_2004_2014.csv")
+
+fdi_coords <- fdi_raw %>%
+  extract(
+    col = Coordinates,
+    into = c("lat", "lon"),
+    regex = "^\\s*(-?\\d+(?:\\.\\d+)?)\\s*,\\s*(-?\\d+(?:\\.\\d+)?)\\s*$",
+    remove = FALSE,
+    convert = TRUE
+  ) %>%
+  mutate(
+    has_coord = !is.na(lat) & !is.na(lon)
+  )
+
+fdi_points <- fdi_coords %>%
+  filter(has_coord) %>%
+  st_as_sf(
+    coords = c("lon", "lat"),
+    crs = 4326,
+    remove = FALSE
+  )
+
+ac_clean <- ac_map %>%
+  st_make_valid() %>%
+  select(State_no2011, ac, geometry)
+
+fdi_points <- st_transform(fdi_points, st_crs(ac_clean))
+
+fdi_points_joined <- fdi_points %>%
+  st_join(ac_clean, join = st_within, left = TRUE)
+
+fdi_ac_lookup <- fdi_points_joined %>%
+  st_drop_geometry() %>%
+  select(`#`, State_no2011, ac)
+
+fdi_final <- fdi_coords %>%
+  left_join(fdi_ac_lookup, by = "#")
+```
+
+```{r Assign periods to FDI}
+fdi_final <- fdi_final %>% 
+  mutate(
+    project_month = as.Date(parse_date_time(
+      `Project date`,
+      orders = c("b Y", "B Y")
+    )),
+    period = case_when(
+      project_month >= as.Date("2004-04-01") &
+        project_month <= as.Date("2009-04-01") ~ "1",
+      
+      project_month >= as.Date("2009-05-01") &
+        project_month <= as.Date("2014-05-01") ~ "2",
+      
+      TRUE ~ NA_character_
+    )
+  )
+```
+
+```{r Pivot a dataframe with investment qualities included}
+fdi_ac <- fdi_final %>%
+  filter(!is.na(State_no2011), !is.na(ac)) %>%
+  clean_names() %>%
+  mutate(
+    period_clean = make_clean_names(as.character(period), allow_dupes = TRUE),
+    activity_clean = make_clean_names(activity, allow_dupes = TRUE)
+  )
+
+fdi_ac_totals <- fdi_ac %>%
+  filter(!is.na(period_clean)) %>%
+  group_by(state_no2011, ac, period_clean) %>%
+  summarise(
+    n = n(),
+    capital = sum(capital_investment, na.rm = TRUE),
+    jobs = sum(jobs_created, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_wider(
+    id_cols = c(state_no2011, ac),
+    names_from = period_clean,
+    values_from = c(n, capital, jobs),
+    names_glue = "fdi_{period_clean}_total_{.value}",
+    values_fill = 0
+  )
+
+fdi_ac_by_activity <- fdi_ac %>%
+  filter(
+    !is.na(period_clean),
+    !is.na(activity_clean)
+  ) %>%
+  group_by(state_no2011, ac, period_clean, activity_clean) %>%
+  summarise(
+    n = n(),
+    capital = sum(capital_investment, na.rm = TRUE),
+    jobs = sum(jobs_created, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_wider(
+    id_cols = c(state_no2011, ac),
+    names_from = c(period_clean, activity_clean),
+    values_from = c(n, capital, jobs),
+    names_glue = "fdi_{period_clean}_{activity_clean}_{.value}",
+    values_fill = 0
+  )
+
+fdi_ac_summary <- fdi_ac_totals %>%
+  full_join(
+    fdi_ac_by_activity,
+    by = c("state_no2011", "ac")
+  ) %>%
+  mutate(
+    across(
+      starts_with("fdi_"),
+      ~ replace_na(.x, 0)
+    )
+  )
 
 ```
 
-3. Merge in economic census and population (migration) data
+```{r Join FDI to AC}
+fdi_ac_map <- ac_map %>% 
+  left_join(fdi_ac_summary, by = c("State_no2011" = "state_no2011", "ac")) %>% 
+  mutate(
+    across(
+      starts_with("fdi_"),
+      ~ tidyr::replace_na(.x, 0)
+    ),
+    fdi_diff = fdi_x2_total_n - fdi_x1_total_n
+  )
+
+elec_cand_nes_ec_m_fdi <- fdi_ac_map %>% 
+  left_join(elec_cand_nes_ec_m, by = c("State_no2011" = "State_no2011", "ac" = "AC_no"))
+```
+
+```{r Regression: FDI * migration increases FR vote share}
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(stringr)
+library(broom)
+library(sf)
+
+# -----------------------------
+# 1. Prepare regression data
+# -----------------------------
+
+reg_data <- elec_cand_nes_ec_m_fdi %>%
+  { if (inherits(., "sf")) sf::st_drop_geometry(.) else . }
+
+dv <- "fr_vote_share_change"
+
+migration_vars <- c(
+  "alloc_2011_Total_Persons_<1",
+  "alloc_2011_Total_Persons_1-4",                     
+  "alloc_2011_Total_Persons_5-9", 
+  "log_alloc_2011_Total_Persons_<1", 
+  "log_alloc_2011_Total_Persons_1-4", 
+  "log_alloc_2011_Total_Persons_5-9",
+  "log_agr_2009",
+  "agr_2009",
+  "log_agr_2014",
+  "agr_2014"
+)
+
+fdi_vars <- c(
+  "fdi_diff",
+  names(reg_data) %>% keep(~ str_detect(.x, "^fdi"))
+) %>%
+  unique()
+
+control_vars <- c(
+  "ec13_emp_all_ac_alloc",
+  "ec13_emp_f_ac_alloc",
+  "ec13_emp_m_ac_alloc",
+  "ec13_emp_gov_ac_alloc",
+  "ec13_emp_priv_ac_alloc",
+  "ec13_emp_own_m_ac_alloc",
+  "ec13_emp_own_f_ac_alloc",
+  "ec13_emp_st_ac_alloc",
+  "ec13_emp_sc_ac_alloc",
+  "ec13_emp_obc_ac_alloc"
+)
+
+# -----------------------------
+# 2. Check that variables exist
+# -----------------------------
+
+all_model_vars <- unique(c(dv, migration_vars, fdi_vars, control_vars))
+
+missing_vars <- setdiff(all_model_vars, names(reg_data))
+
+if (length(missing_vars) > 0) {
+  stop(
+    "These variables are missing from reg_data:\n",
+    paste(missing_vars, collapse = "\n")
+  )
+}
+
+# -----------------------------
+# 3. Define control sets
+# -----------------------------
+# Avoid putting ec13_emp_all_ac_alloc in the same preferred specification
+# as all its subcomponents, since that may create collinearity.
+
+control_sets <- list(
+  no_controls = character(0),
+  
+  employment_total = c(
+    "ec13_emp_all_ac_alloc"
+  ),
+  
+  employment_disaggregated = c(
+    "ec13_emp_f_ac_alloc",
+    "ec13_emp_m_ac_alloc",
+    "ec13_emp_gov_ac_alloc",
+    "ec13_emp_priv_ac_alloc",
+    "ec13_emp_own_m_ac_alloc",
+    "ec13_emp_own_f_ac_alloc",
+    "ec13_emp_st_ac_alloc",
+    "ec13_emp_sc_ac_alloc",
+    "ec13_emp_obc_ac_alloc"
+  )
+)
+
+single_control_sets <- control_vars %>%
+  set_names(paste0("single_", .)) %>%
+  map(~ .x)
+
+control_sets <- c(control_sets, single_control_sets)
+
+# -----------------------------
+# 4. Regression function
+# -----------------------------
+# This avoids formula problems from variables with names like:
+# alloc_2011_Total_Persons_<1
+# alloc_2011_Total_Persons_1-4
+#
+# Each model is estimated as:
+# y ~ migration * fdi + controls
+#
+# But the output records the original variable names.
+
+run_fdi_model <- function(data, migration_var, fdi_var, controls, control_set_name) {
+  
+  controls <- controls[!is.na(controls) & controls != ""]
+  
+  vars_needed <- unique(c(dv, migration_var, fdi_var, controls))
+  
+  missing_vars <- setdiff(vars_needed, names(data))
+  
+  if (length(missing_vars) > 0) {
+    return(tibble(
+      migration_var = migration_var,
+      fdi_var = fdi_var,
+      control_set = control_set_name,
+      term = NA_character_,
+      term_original = NA_character_,
+      estimate = NA_real_,
+      std.error = NA_real_,
+      statistic = NA_real_,
+      p.value = NA_real_,
+      n_obs = NA_integer_,
+      r_squared = NA_real_,
+      adj_r_squared = NA_real_,
+      error = paste("Missing variables:", paste(missing_vars, collapse = ", "))
+    ))
+  }
+  
+  model_data <- tibble(
+    y = data[[dv]],
+    migration = data[[migration_var]],
+    fdi = data[[fdi_var]]
+  )
+  
+  if (length(controls) > 0) {
+    controls_df <- data[controls]
+    names(controls_df) <- paste0("control_", seq_along(controls))
+    model_data <- bind_cols(model_data, controls_df)
+  }
+  
+  model_data <- model_data %>%
+    filter(
+      if_all(everything(), ~ !is.na(.x)),
+      if_all(where(is.numeric), ~ is.finite(.x))
+    )
+  
+  min_obs_needed <- max(10, length(controls) + 4)
+  
+  if (nrow(model_data) < min_obs_needed) {
+    return(tibble(
+      migration_var = migration_var,
+      fdi_var = fdi_var,
+      control_set = control_set_name,
+      term = NA_character_,
+      term_original = NA_character_,
+      estimate = NA_real_,
+      std.error = NA_real_,
+      statistic = NA_real_,
+      p.value = NA_real_,
+      n_obs = nrow(model_data),
+      r_squared = NA_real_,
+      adj_r_squared = NA_real_,
+      error = "Too few complete observations"
+    ))
+  }
+  
+  rhs_terms <- c(
+    "migration * fdi",
+    if (length(controls) > 0) paste0("control_", seq_along(controls)) else character(0)
+  )
+  
+  fml <- reformulate(rhs_terms, response = "y")
+  
+  model <- tryCatch(
+    lm(fml, data = model_data),
+    error = function(e) e
+  )
+  
+  if (inherits(model, "error")) {
+    return(tibble(
+      migration_var = migration_var,
+      fdi_var = fdi_var,
+      control_set = control_set_name,
+      term = NA_character_,
+      term_original = NA_character_,
+      estimate = NA_real_,
+      std.error = NA_real_,
+      statistic = NA_real_,
+      p.value = NA_real_,
+      n_obs = nrow(model_data),
+      r_squared = NA_real_,
+      adj_r_squared = NA_real_,
+      error = model$message
+    ))
+  }
+  
+  base_lookup <- tibble(
+    term = c("(Intercept)", "migration", "fdi", "migration:fdi"),
+    term_original = c(
+      "(Intercept)",
+      migration_var,
+      fdi_var,
+      paste0(migration_var, ":", fdi_var)
+    )
+  )
+  
+  control_lookup <- if (length(controls) > 0) {
+    tibble(
+      term = paste0("control_", seq_along(controls)),
+      term_original = controls
+    )
+  } else {
+    tibble(
+      term = character(0),
+      term_original = character(0)
+    )
+  }
+  
+  term_lookup <- bind_rows(base_lookup, control_lookup)
+  
+  broom::tidy(model) %>%
+    left_join(term_lookup, by = "term") %>%
+    mutate(
+      term_original = coalesce(term_original, term),
+      migration_var = migration_var,
+      fdi_var = fdi_var,
+      control_set = control_set_name,
+      n_obs = nobs(model),
+      r_squared = summary(model)$r.squared,
+      adj_r_squared = summary(model)$adj.r.squared,
+      error = NA_character_
+    )
+}
+
+# -----------------------------
+# 5. Build model grid
+# -----------------------------
+
+model_grid <- expand_grid(
+  migration_var = migration_vars,
+  fdi_var = fdi_vars,
+  control_set = names(control_sets)
+) %>%
+  mutate(
+    controls = map(control_set, ~ control_sets[[.x]])
+  )
+
+# Optional check
+model_grid %>%
+  count(control_set)
+
+# -----------------------------
+# 6. Test first model before running all
+# -----------------------------
+
+test_result <- run_fdi_model(
+  data = reg_data,
+  migration_var = model_grid$migration_var[[1]],
+  fdi_var = model_grid$fdi_var[[1]],
+  controls = model_grid$controls[[1]],
+  control_set_name = model_grid$control_set[[1]]
+)
+
+test_result
+
+# -----------------------------
+# 7. Run all regressions
+# -----------------------------
+
+reg_results <- model_grid %>%
+  mutate(
+    results = pmap(
+      list(migration_var, fdi_var, controls, control_set),
+      ~ run_fdi_model(
+        data = reg_data,
+        migration_var = ..1,
+        fdi_var = ..2,
+        controls = ..3,
+        control_set_name = ..4
+      )
+    )
+  ) %>%
+  select(results) %>%
+  unnest(results)
+
+# -----------------------------
+# 8. Extract interaction results
+# -----------------------------
+
+interaction_results <- reg_results %>%
+  filter(term == "migration:fdi") %>%
+  mutate(
+    stars = case_when(
+      p.value < 0.01 ~ "***",
+      p.value < 0.05 ~ "**",
+      p.value < 0.10 ~ "*",
+      TRUE ~ ""
+    )
+  ) %>%
+  arrange(p.value)
+
+interaction_table <- interaction_results %>%
+  transmute(
+    migration_var,
+    fdi_var,
+    control_set,
+    interaction_term = term_original,
+    coefficient = estimate,
+    se = std.error,
+    t_stat = statistic,
+    p_value = p.value,
+    stars,
+    n_obs,
+    r_squared,
+    adj_r_squared,
+    error
+  ) %>%
+  arrange(migration_var, fdi_var, control_set)
+
+View(interaction_table)
+
+```
+We can start off by confirming that exposure to the interaction of FDI and migration drives an increase in support for the far right. We do this using time series data for all assembly constituencies in 11 states.
+Obs ≈ 2076
+
+
+```{r Probability that a moderate voter will vote for the far right}
+
+```
+To understand (a), we can use a logit model to regress whether a moderate voter voted for the far right on their exposure to our two shocks of interest, an interaction, and controls. We can do the same for left voters and right voters to check that the effect is stronger for moderates than either left (not going to vote for the right) or right (already voting for the right). So:
+Left Voter Voted for Far Right ~ FDI + Migration + FDI * Migration
+Moderate Voter Voted for Far Right ~ FDI + Migration + FDI * Migration
+Right Voter Voted for Far Right ~ FDI + Migration + FDI * Migration
+Obs ≈ 550
+
+
+```{r Share of moderate voters who do vote for the far right}
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(stringr)
+library(broom)
+library(sf)
+
+# -----------------------------
+# 1. Prepare regression data
+# -----------------------------
+
+reg_data <- elec_cand_nes_ec_m_fdi %>%
+  { if (inherits(., "sf")) sf::st_drop_geometry(.) else . }
+
+# Optional: create migration-change variables
+reg_data <- reg_data %>%
+  mutate(
+    agr_diff_09_14 = agr_2014 - agr_2009,
+    log_agr_diff_09_14 = log_agr_2014 - log_agr_2009
+  )
+
+# -----------------------------
+# 2. Outcome variables
+# -----------------------------
+
+dv_specs <- tibble::tribble(
+  ~election_year, ~ideology_group, ~dv,
+  2009, "moderate", "loc_bjp_mod_vote_share_2009",
+  2009, "right",    "loc_bjp_right_vote_share_2009",
+  2009, "left",     "loc_bjp_left_vote_share_2009",
+  2014, "moderate", "loc_bjp_mod_vote_share_2014",
+  2014, "right",    "loc_bjp_right_vote_share_2014",
+  2014, "left",     "loc_bjp_left_vote_share_2014"
+)
+
+# Keep only outcome variables that exist
+dv_specs <- dv_specs %>%
+  filter(dv %in% names(reg_data))
+
+# -----------------------------
+# 3. FDI and migration variables
+# -----------------------------
+
+fdi_x1_vars <- names(reg_data) %>%
+  keep(~ str_detect(.x, "^fdi_x1"))
+
+fdi_x2_vars <- names(reg_data) %>%
+  keep(~ str_detect(.x, "^fdi_x2"))
+
+migration_2009_vars <- c(
+  "agr_2009",
+  "log_agr_2009",
+  "log_alloc_2011_Total_Persons_1-4",
+  "alloc_2011_Total_Persons_1-4"
+)
+
+migration_2014_vars <- c(
+  "agr_2014",
+  "log_agr_2014",
+  "log_alloc_2011_Total_Persons_<1",
+  "alloc_2011_Total_Persons_<1",
+  "agr_diff_09_14",
+  "log_agr_diff_09_14"
+)
+
+migration_2009_vars <- intersect(migration_2009_vars, names(reg_data))
+migration_2014_vars <- intersect(migration_2014_vars, names(reg_data))
+
+# -----------------------------
+# 4. Controls
+# -----------------------------
+
+control_vars <- c(
+  "ec13_emp_all_ac_alloc",
+  "ec13_emp_f_ac_alloc",
+  "ec13_emp_m_ac_alloc",
+  "ec13_emp_gov_ac_alloc",
+  "ec13_emp_priv_ac_alloc",
+  "ec13_emp_own_m_ac_alloc",
+  "ec13_emp_own_f_ac_alloc",
+  "ec13_emp_st_ac_alloc",
+  "ec13_emp_sc_ac_alloc",
+  "ec13_emp_obc_ac_alloc"
+)
+
+control_vars <- intersect(control_vars, names(reg_data))
+
+control_sets <- list(
+  no_controls = character(0),
+  
+  employment_total = c(
+    "ec13_emp_all_ac_alloc"
+  ),
+  
+  employment_disaggregated = c(
+    "ec13_emp_f_ac_alloc",
+    "ec13_emp_m_ac_alloc",
+    "ec13_emp_gov_ac_alloc",
+    "ec13_emp_priv_ac_alloc",
+    "ec13_emp_own_m_ac_alloc",
+    "ec13_emp_own_f_ac_alloc",
+    "ec13_emp_st_ac_alloc",
+    "ec13_emp_sc_ac_alloc",
+    "ec13_emp_obc_ac_alloc"
+  )
+)
+
+# Drop controls from each set if they are not present
+control_sets <- map(control_sets, ~ intersect(.x, names(reg_data)))
+
+single_control_sets <- control_vars %>%
+  set_names(paste0("single_", .)) %>%
+  map(~ .x)
+
+control_sets <- c(control_sets, single_control_sets)
+
+# -----------------------------
+# 5. Build model grid
+# -----------------------------
+
+model_grid_2009 <- expand_grid(
+  dv_specs %>% filter(election_year == 2009),
+  migration_var = migration_2009_vars,
+  fdi_var = fdi_x1_vars,
+  control_set = names(control_sets)
+) %>%
+  mutate(
+    controls = map(control_set, ~ control_sets[[.x]])
+  )
+
+model_grid_2014 <- expand_grid(
+  dv_specs %>% filter(election_year == 2014),
+  migration_var = migration_2014_vars,
+  fdi_var = fdi_x2_vars,
+  control_set = names(control_sets)
+) %>%
+  mutate(
+    controls = map(control_set, ~ control_sets[[.x]])
+  )
+
+model_grid <- bind_rows(model_grid_2009, model_grid_2014)
+
+# -----------------------------
+# 6. Regression function
+# -----------------------------
+# Uses temporary names:
+# y ~ migration * fdi + control_1 + control_2 + ...
+#
+# This avoids errors from variables with names like:
+# alloc_2011_Total_Persons_<1
+# alloc_2011_Total_Persons_1-4
+
+run_cross_section_model <- function(data, dv, migration_var, fdi_var,
+                                    controls, election_year,
+                                    ideology_group, control_set_name) {
+  
+  controls <- controls[!is.na(controls) & controls != ""]
+  
+  vars_needed <- unique(c(dv, migration_var, fdi_var, controls))
+  missing_vars <- setdiff(vars_needed, names(data))
+  
+  if (length(missing_vars) > 0) {
+    return(tibble(
+      election_year = election_year,
+      ideology_group = ideology_group,
+      dv = dv,
+      migration_var = migration_var,
+      fdi_var = fdi_var,
+      control_set = control_set_name,
+      term = NA_character_,
+      term_original = NA_character_,
+      estimate = NA_real_,
+      std.error = NA_real_,
+      statistic = NA_real_,
+      p.value = NA_real_,
+      n_obs = NA_integer_,
+      r_squared = NA_real_,
+      adj_r_squared = NA_real_,
+      error = paste("Missing variables:", paste(missing_vars, collapse = ", "))
+    ))
+  }
+  
+  model_data <- tibble(
+    y = data[[dv]],
+    migration = data[[migration_var]],
+    fdi = data[[fdi_var]]
+  )
+  
+  if (length(controls) > 0) {
+    controls_df <- as_tibble(data[controls])
+    names(controls_df) <- paste0("control_", seq_along(controls))
+    model_data <- bind_cols(model_data, controls_df)
+  }
+  
+  model_data <- model_data %>%
+    filter(
+      if_all(everything(), ~ !is.na(.x)),
+      if_all(where(is.numeric), ~ is.finite(.x))
+    )
+  
+  min_obs_needed <- max(10, length(controls) + 4)
+  
+  if (nrow(model_data) < min_obs_needed) {
+    return(tibble(
+      election_year = election_year,
+      ideology_group = ideology_group,
+      dv = dv,
+      migration_var = migration_var,
+      fdi_var = fdi_var,
+      control_set = control_set_name,
+      term = NA_character_,
+      term_original = NA_character_,
+      estimate = NA_real_,
+      std.error = NA_real_,
+      statistic = NA_real_,
+      p.value = NA_real_,
+      n_obs = nrow(model_data),
+      r_squared = NA_real_,
+      adj_r_squared = NA_real_,
+      error = "Too few complete observations"
+    ))
+  }
+  
+  rhs_terms <- c(
+    "migration * fdi",
+    if (length(controls) > 0) paste0("control_", seq_along(controls)) else character(0)
+  )
+  
+  fml <- reformulate(rhs_terms, response = "y")
+  
+  model <- tryCatch(
+    lm(fml, data = model_data),
+    error = function(e) e
+  )
+  
+  if (inherits(model, "error")) {
+    return(tibble(
+      election_year = election_year,
+      ideology_group = ideology_group,
+      dv = dv,
+      migration_var = migration_var,
+      fdi_var = fdi_var,
+      control_set = control_set_name,
+      term = NA_character_,
+      term_original = NA_character_,
+      estimate = NA_real_,
+      std.error = NA_real_,
+      statistic = NA_real_,
+      p.value = NA_real_,
+      n_obs = nrow(model_data),
+      r_squared = NA_real_,
+      adj_r_squared = NA_real_,
+      error = model$message
+    ))
+  }
+  
+  base_lookup <- tibble(
+    term = c("(Intercept)", "migration", "fdi", "migration:fdi"),
+    term_original = c(
+      "(Intercept)",
+      migration_var,
+      fdi_var,
+      paste0(migration_var, ":", fdi_var)
+    )
+  )
+  
+  control_lookup <- if (length(controls) > 0) {
+    tibble(
+      term = paste0("control_", seq_along(controls)),
+      term_original = controls
+    )
+  } else {
+    tibble(
+      term = character(0),
+      term_original = character(0)
+    )
+  }
+  
+  term_lookup <- bind_rows(base_lookup, control_lookup)
+  
+  broom::tidy(model) %>%
+    left_join(term_lookup, by = "term") %>%
+    mutate(
+      term_original = coalesce(term_original, term),
+      election_year = election_year,
+      ideology_group = ideology_group,
+      dv = dv,
+      migration_var = migration_var,
+      fdi_var = fdi_var,
+      control_set = control_set_name,
+      n_obs = nobs(model),
+      r_squared = summary(model)$r.squared,
+      adj_r_squared = summary(model)$adj.r.squared,
+      error = NA_character_
+    )
+}
+
+# -----------------------------
+# 7. Test one model
+# -----------------------------
+
+test_cross_section_result <- run_cross_section_model(
+  data = reg_data,
+  dv = model_grid$dv[[1]],
+  migration_var = model_grid$migration_var[[1]],
+  fdi_var = model_grid$fdi_var[[1]],
+  controls = model_grid$controls[[1]],
+  election_year = model_grid$election_year[[1]],
+  ideology_group = model_grid$ideology_group[[1]],
+  control_set_name = model_grid$control_set[[1]]
+)
+
+test_cross_section_result
+
+# -----------------------------
+# 8. Run all models
+# -----------------------------
+
+cross_section_results <- model_grid %>%
+  mutate(
+    results = pmap(
+      list(
+        dv,
+        migration_var,
+        fdi_var,
+        controls,
+        election_year,
+        ideology_group,
+        control_set
+      ),
+      ~ run_cross_section_model(
+        data = reg_data,
+        dv = ..1,
+        migration_var = ..2,
+        fdi_var = ..3,
+        controls = ..4,
+        election_year = ..5,
+        ideology_group = ..6,
+        control_set_name = ..7
+      )
+    )
+  ) %>%
+  select(results) %>%
+  unnest(results)
+
+# -----------------------------
+# 9. Extract interaction terms
+# -----------------------------
+
+cross_section_interactions <- cross_section_results %>%
+  filter(term == "migration:fdi") %>%
+  mutate(
+    stars = case_when(
+      p.value < 0.01 ~ "***",
+      p.value < 0.05 ~ "**",
+      p.value < 0.10 ~ "*",
+      TRUE ~ ""
+    )
+  ) %>%
+  arrange(election_year, ideology_group, p.value)
+
+cross_section_table <- cross_section_interactions %>%
+  transmute(
+    election_year,
+    ideology_group,
+    dv,
+    migration_var,
+    fdi_var,
+    control_set,
+    interaction_term = term_original,
+    coefficient = estimate,
+    se = std.error,
+    t_stat = statistic,
+    p_value = p.value,
+    stars,
+    n_obs,
+    r_squared,
+    adj_r_squared,
+    error
+  ) %>%
+  arrange(election_year, ideology_group, migration_var, fdi_var, control_set)
+
+View(cross_section_table)
+
+```
+To understand (b), we can regress the vote share of far right parties among moderate voters in an assembly constituency on an assembly constituency’s exposure to our two shocks of interest, an interaction, and controls. We can do the same for the vote share of far right parties among left and right voters to check that the effect is stronger for moderates than either left (not going to vote for the right) or right (already voting for the right). So:
+Share of Left Voters Voting Far Right ~ FDI + Migration + FDI * Migration
+Share of Moderate Voters Voting Far Right ~ FDI + Migration + FDI * Migration
+Share of Right Voters Voting Far Right ~ FDI + Migration + FDI * Migration
+Obs ≈ 550
+
