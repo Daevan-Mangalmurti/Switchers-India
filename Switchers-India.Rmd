@@ -5,17 +5,46 @@ output:
     keep_md: true
 date: "2026-03-24"
 ---
-This code has been prepared to merge assembly constituency (AC) level election data from 2009 and 2014 with census indicators, SHRUG data, migration data, political party data, and Lokniti data from 2009 to 2014.
+This is the replication code for "Switchers." In this paper, we test hypotheses regarding the rise of far-right parties that were developed from the case of the West in India. We are particularly interested in how the combination of economic insecurity and demographic change affects moderates' voting behavior, and we test this using data on globalization (Foreign Direct Investment) and (internal) migration. The first X chunks in this code go step-by-step through the process of loading and cleaning the data that we use in our regressions, including creating relevant variables.
 
 ```{r Load libraries, message = FALSE}
 library(tidyverse)
+library(sf)
 library(foreign)
 library(xtable)
 library(haven)
-library(sf)
 library(janitor)
 library(broom)
+library(marginaleffects)
 ```
+
+```{r Load data, message = FALSE}
+
+# Assembly constituency election returns
+ac_elections <- read_csv("data/lok_dhaba_ae.csv")
+
+# Survey data for 2009/2014 elections
+
+# Foreign direct investment data
+fdi <- read_csv("data/IN_FDI_2004_2014.csv")
+
+# District-wise migration data
+
+# District-wise employment data
+
+# District-wise SC/ST data
+
+# District-wise household data
+
+# Polling station data
+
+
+
+
+
+```
+
+
 
 ```{r Create helper functions for loading data, message = FALSE}
 # Build a helper function for cleaning PC names for use as labels
@@ -561,23 +590,65 @@ group_nes_2014 <- nes_2014_scored %>%
 ```
 
 ```{r Join 2009 and 2014 Lokniti data to main data file}
-elec_cand_nes <- elec_cand %>% 
-  left_join(group_nes_2009, by = c("State_no2011", "AC_no" = "ac_id")) %>% 
-  left_join(group_nes_2014, by = c("State_no2011", "AC_no" = "ac_id"))
+nes_2009_vars <- group_nes_2009 %>%
+  select(-State_no2011, -ac_id) %>%
+  names()
+
+nes_2014_vars <- group_nes_2014 %>%
+  select(-State_no2011, -ac_id) %>%
+  names()
 
 # Remove unnecessary columns
-elec_cand_nes <- elec_cand_nes %>% 
-  select(c(State_no2011, AC_no, PC_no_09, PC_name_09, AC_name_09.x, Votes_total_09,
-         Electors_09, District_no2011_09, District_name2011_09, PC_no_14,
-         PC_name_14, AC_name_14.x, Votes_total_14, Electors_14, District_no2011_14,
-         District_name2011_14, fr_cands_09, fr_cands_14, fr_votes_09, fr_votes_14,
-         fr_vote_share_09, fr_vote_share_14, fr_vote_share_change, 118:135)) %>% 
+elec_cand_nes <- elec_cand %>% 
+  left_join(
+    group_nes_2009,
+    by = c("State_no2011", "AC_no" = "ac_id")
+  ) %>% 
+  left_join(
+    group_nes_2014,
+    by = c("State_no2011", "AC_no" = "ac_id")
+  ) %>%
+  select(
+    any_of(c(
+      "State_no2011",
+      "AC_no",
+      "PC_no_09",
+      "PC_name_09",
+      "AC_name_09.x",
+      "Votes_total_09",
+      "Electors_09",
+      "District_no2011_09",
+      "District_name2011_09",
+      "PC_no_14",
+      "PC_name_14",
+      "AC_name_14.x",
+      "Votes_total_14",
+      "Electors_14",
+      "District_no2011_14",
+      "District_name2011_14",
+      "fr_cands_09",
+      "fr_cands_14",
+      "fr_votes_09",
+      "fr_votes_14",
+      "fr_vote_share_09",
+      "fr_vote_share_14",
+      "fr_vote_share_change"
+    )),
+    all_of(nes_2009_vars),
+    all_of(nes_2014_vars)
+  ) %>%
   mutate(
     District_no2011_09 = as.integer(District_no2011_09),
     District_no2011_14 = as.integer(District_no2011_14),
     District_no2011 = coalesce(District_no2011_14, District_no2011_09)
-    ) %>% 
-  select(-c(District_no2011_09, District_no2011_14, District_name2011_09))
+  ) %>% 
+  select(
+    -any_of(c(
+      "District_no2011_09",
+      "District_no2011_14",
+      "District_name2011_09"
+    ))
+  )
 ```
 
 ```{r Merge in EC 2013 and PC 2011 data}
@@ -960,83 +1031,125 @@ elec_cand_nes_ec_m_fdi <- fdi_ac_map %>%
   left_join(elec_cand_nes_ec_m, by = c("State_no2011" = "State_no2011", "ac" = "AC_no"))
 ```
 
-```{r Regression: FDI * migration increases FR vote share}
+https://kclpure.kcl.ac.uk/portal/en/publications/gis-shapefiles-for-indias-parliamentary-and-assembly-constituenci/
+https://pub.uni-bielefeld.de/download/2674065/2674106/README.txt
+Begin restructured, still mostly AI section
+```{r setup, message=FALSE, warning=FALSE}
+# ============================================================
+# SETUP
+# ============================================================
+
 library(dplyr)
 library(tidyr)
 library(purrr)
 library(stringr)
 library(broom)
 library(sf)
+library(readr)
+library(ggplot2)
+library(marginaleffects)
 
-# -----------------------------
-# 1. Prepare regression data
-# -----------------------------
+dir.create("outputs", recursive = TRUE, showWarnings = FALSE)
+dir.create("outputs/tables", recursive = TRUE, showWarnings = FALSE)
+dir.create("outputs/figures", recursive = TRUE, showWarnings = FALSE)
+
+# Assumes this object already exists from your earlier data construction:
+# elec_cand_nes_ec_m_fdi
 
 reg_data <- elec_cand_nes_ec_m_fdi %>%
-  { if (inherits(., "sf")) sf::st_drop_geometry(.) else . }
-
-dv <- "fr_vote_share_change"
-
-migration_vars <- c(
-  "alloc_2011_Total_Persons_<1",
-  "alloc_2011_Total_Persons_1-4",                     
-  "alloc_2011_Total_Persons_5-9", 
-  "log_alloc_2011_Total_Persons_<1", 
-  "log_alloc_2011_Total_Persons_1-4", 
-  "log_alloc_2011_Total_Persons_5-9",
-  "log_agr_2009",
-  "agr_2009",
-  "log_agr_2014",
-  "agr_2014"
-)
-
-fdi_vars <- c(
-  "fdi_diff",
-  names(reg_data) %>% keep(~ str_detect(.x, "^fdi"))
-) %>%
-  unique()
-
-control_vars <- c(
-  "ec13_emp_all_ac_alloc",
-  "ec13_emp_f_ac_alloc",
-  "ec13_emp_m_ac_alloc",
-  "ec13_emp_gov_ac_alloc",
-  "ec13_emp_priv_ac_alloc",
-  "ec13_emp_own_m_ac_alloc",
-  "ec13_emp_own_f_ac_alloc",
-  "ec13_emp_st_ac_alloc",
-  "ec13_emp_sc_ac_alloc",
-  "ec13_emp_obc_ac_alloc"
-)
-
-# -----------------------------
-# 2. Check that variables exist
-# -----------------------------
-
-all_model_vars <- unique(c(dv, migration_vars, fdi_vars, control_vars))
-
-missing_vars <- setdiff(all_model_vars, names(reg_data))
-
-if (length(missing_vars) > 0) {
-  stop(
-    "These variables are missing from reg_data:\n",
-    paste(missing_vars, collapse = "\n")
+  { if (inherits(., "sf")) sf::st_drop_geometry(.) else . } %>%
+  mutate(
+    agr_diff_09_14 = agr_2014 - agr_2009,
+    log_agr_diff_09_14 = log_agr_2014 - log_agr_2009,
+    fdi_total_n_diff = fdi_x2_total_n - fdi_x1_total_n,
+    fdi_manufacturing_n_diff = fdi_x2_manufacturing_n - fdi_x1_manufacturing_n
   )
-}
+```
+
+```{r define-focused-fdi, message=FALSE, warning=FALSE}
+# ============================================================
+# DEFINE FOCUSED FDI, MIGRATION, CONTROLS, AND DVs
+# ============================================================
 
 # -----------------------------
-# 3. Define control sets
+# Focused FDI variables only
 # -----------------------------
-# Avoid putting ec13_emp_all_ac_alloc in the same preferred specification
-# as all its subcomponents, since that may create collinearity.
+
+fdi_change_vars <- c(
+  "fdi_total_n_diff",
+  "fdi_manufacturing_n_diff"
+) %>%
+  intersect(names(reg_data))
+
+fdi_x1_vars <- c(
+  "fdi_x1_total_n",
+  "fdi_x1_manufacturing_n"
+) %>%
+  intersect(names(reg_data))
+
+fdi_x2_vars <- c(
+  "fdi_x2_total_n",
+  "fdi_x2_manufacturing_n"
+) %>%
+  intersect(names(reg_data))
+
+# -----------------------------
+# Migration variables
+# -----------------------------
+
+# migration_change_vars <- c(
+#   "alloc_2011_Total_Persons_<1",
+#   "alloc_2011_Total_Persons_1-4",                     
+#   "alloc_2011_Total_Persons_5-9", 
+#   "log_alloc_2011_Total_Persons_<1", 
+#   "log_alloc_2011_Total_Persons_1-4", 
+#   "log_alloc_2011_Total_Persons_5-9",
+#   "log_agr_2009",
+#   "agr_2009",
+#   "log_agr_2014",
+#   "agr_2014"
+# ) %>%
+#   intersect(names(reg_data))
+
+migration_2009_vars <- c(
+  "agr_2009",
+  "log_agr_2009",
+  "alloc_2011_Total_Persons_1-4",
+  "log_alloc_2011_Total_Persons_1-4"
+) %>%
+  intersect(names(reg_data))
+
+migration_2014_vars <- c(
+  "agr_2014",
+  "log_agr_2014",
+  "alloc_2011_Total_Persons_<1",
+  "log_alloc_2011_Total_Persons_<1",
+  "agr_diff_09_14",
+  "log_agr_diff_09_14"
+) %>%
+  intersect(names(reg_data))
+
+# -----------------------------
+# Controls
+# -----------------------------
+
+# control_vars <- c(
+#   "ec13_emp_all_ac_alloc",
+#   "ec13_emp_f_ac_alloc",
+#   "ec13_emp_m_ac_alloc",
+#   "ec13_emp_gov_ac_alloc",
+#   "ec13_emp_priv_ac_alloc",
+#   "ec13_emp_own_m_ac_alloc",
+#   "ec13_emp_own_f_ac_alloc",
+#   "ec13_emp_st_ac_alloc",
+#   "ec13_emp_sc_ac_alloc",
+#   "ec13_emp_obc_ac_alloc"
+# ) %>%
+#   intersect(names(reg_data))
 
 control_sets <- list(
   no_controls = character(0),
-  
-  employment_total = c(
-    "ec13_emp_all_ac_alloc"
-  ),
-  
+  employment_total = c("ec13_emp_all_ac_alloc"),
   employment_disaggregated = c(
     "ec13_emp_f_ac_alloc",
     "ec13_emp_m_ac_alloc",
@@ -1050,285 +1163,19 @@ control_sets <- list(
   )
 )
 
-single_control_sets <- control_vars %>%
-  set_names(paste0("single_", .)) %>%
-  map(~ .x)
+# control_sets <- map(control_sets, ~ intersect(.x, names(reg_data)))
+# 
+# single_control_sets <- control_vars %>%
+#   set_names(paste0("single_", .)) %>%
+#   map(~ .x)
 
 control_sets <- c(control_sets, single_control_sets)
 
 # -----------------------------
-# 4. Regression function
-# -----------------------------
-# This avoids formula problems from variables with names like:
-# alloc_2011_Total_Persons_<1
-# alloc_2011_Total_Persons_1-4
-#
-# Each model is estimated as:
-# y ~ migration * fdi + controls
-#
-# But the output records the original variable names.
-
-run_fdi_model <- function(data, migration_var, fdi_var, controls, control_set_name) {
-  
-  controls <- controls[!is.na(controls) & controls != ""]
-  
-  vars_needed <- unique(c(dv, migration_var, fdi_var, controls))
-  
-  missing_vars <- setdiff(vars_needed, names(data))
-  
-  if (length(missing_vars) > 0) {
-    return(tibble(
-      migration_var = migration_var,
-      fdi_var = fdi_var,
-      control_set = control_set_name,
-      term = NA_character_,
-      term_original = NA_character_,
-      estimate = NA_real_,
-      std.error = NA_real_,
-      statistic = NA_real_,
-      p.value = NA_real_,
-      n_obs = NA_integer_,
-      r_squared = NA_real_,
-      adj_r_squared = NA_real_,
-      error = paste("Missing variables:", paste(missing_vars, collapse = ", "))
-    ))
-  }
-  
-  model_data <- tibble(
-    y = data[[dv]],
-    migration = data[[migration_var]],
-    fdi = data[[fdi_var]]
-  )
-  
-  if (length(controls) > 0) {
-    controls_df <- data[controls]
-    names(controls_df) <- paste0("control_", seq_along(controls))
-    model_data <- bind_cols(model_data, controls_df)
-  }
-  
-  model_data <- model_data %>%
-    filter(
-      if_all(everything(), ~ !is.na(.x)),
-      if_all(where(is.numeric), ~ is.finite(.x))
-    )
-  
-  min_obs_needed <- max(10, length(controls) + 4)
-  
-  if (nrow(model_data) < min_obs_needed) {
-    return(tibble(
-      migration_var = migration_var,
-      fdi_var = fdi_var,
-      control_set = control_set_name,
-      term = NA_character_,
-      term_original = NA_character_,
-      estimate = NA_real_,
-      std.error = NA_real_,
-      statistic = NA_real_,
-      p.value = NA_real_,
-      n_obs = nrow(model_data),
-      r_squared = NA_real_,
-      adj_r_squared = NA_real_,
-      error = "Too few complete observations"
-    ))
-  }
-  
-  rhs_terms <- c(
-    "migration * fdi",
-    if (length(controls) > 0) paste0("control_", seq_along(controls)) else character(0)
-  )
-  
-  fml <- reformulate(rhs_terms, response = "y")
-  
-  model <- tryCatch(
-    lm(fml, data = model_data),
-    error = function(e) e
-  )
-  
-  if (inherits(model, "error")) {
-    return(tibble(
-      migration_var = migration_var,
-      fdi_var = fdi_var,
-      control_set = control_set_name,
-      term = NA_character_,
-      term_original = NA_character_,
-      estimate = NA_real_,
-      std.error = NA_real_,
-      statistic = NA_real_,
-      p.value = NA_real_,
-      n_obs = nrow(model_data),
-      r_squared = NA_real_,
-      adj_r_squared = NA_real_,
-      error = model$message
-    ))
-  }
-  
-  base_lookup <- tibble(
-    term = c("(Intercept)", "migration", "fdi", "migration:fdi"),
-    term_original = c(
-      "(Intercept)",
-      migration_var,
-      fdi_var,
-      paste0(migration_var, ":", fdi_var)
-    )
-  )
-  
-  control_lookup <- if (length(controls) > 0) {
-    tibble(
-      term = paste0("control_", seq_along(controls)),
-      term_original = controls
-    )
-  } else {
-    tibble(
-      term = character(0),
-      term_original = character(0)
-    )
-  }
-  
-  term_lookup <- bind_rows(base_lookup, control_lookup)
-  
-  broom::tidy(model) %>%
-    left_join(term_lookup, by = "term") %>%
-    mutate(
-      term_original = coalesce(term_original, term),
-      migration_var = migration_var,
-      fdi_var = fdi_var,
-      control_set = control_set_name,
-      n_obs = nobs(model),
-      r_squared = summary(model)$r.squared,
-      adj_r_squared = summary(model)$adj.r.squared,
-      error = NA_character_
-    )
-}
-
-# -----------------------------
-# 5. Build model grid
+# AC-share dependent variables
 # -----------------------------
 
-model_grid <- expand_grid(
-  migration_var = migration_vars,
-  fdi_var = fdi_vars,
-  control_set = names(control_sets)
-) %>%
-  mutate(
-    controls = map(control_set, ~ control_sets[[.x]])
-  )
-
-# Optional check
-model_grid %>%
-  count(control_set)
-
-# -----------------------------
-# 6. Test first model before running all
-# -----------------------------
-
-test_result <- run_fdi_model(
-  data = reg_data,
-  migration_var = model_grid$migration_var[[1]],
-  fdi_var = model_grid$fdi_var[[1]],
-  controls = model_grid$controls[[1]],
-  control_set_name = model_grid$control_set[[1]]
-)
-
-test_result
-
-# -----------------------------
-# 7. Run all regressions
-# -----------------------------
-
-reg_results <- model_grid %>%
-  mutate(
-    results = pmap(
-      list(migration_var, fdi_var, controls, control_set),
-      ~ run_fdi_model(
-        data = reg_data,
-        migration_var = ..1,
-        fdi_var = ..2,
-        controls = ..3,
-        control_set_name = ..4
-      )
-    )
-  ) %>%
-  select(results) %>%
-  unnest(results)
-
-# -----------------------------
-# 8. Extract interaction results
-# -----------------------------
-
-interaction_results <- reg_results %>%
-  filter(term == "migration:fdi") %>%
-  mutate(
-    stars = case_when(
-      p.value < 0.01 ~ "***",
-      p.value < 0.05 ~ "**",
-      p.value < 0.10 ~ "*",
-      TRUE ~ ""
-    )
-  ) %>%
-  arrange(p.value)
-
-interaction_table <- interaction_results %>%
-  transmute(
-    migration_var,
-    fdi_var,
-    control_set,
-    interaction_term = term_original,
-    coefficient = estimate,
-    se = std.error,
-    t_stat = statistic,
-    p_value = p.value,
-    stars,
-    n_obs,
-    r_squared,
-    adj_r_squared,
-    error
-  ) %>%
-  arrange(migration_var, fdi_var, control_set)
-
-View(interaction_table)
-
-```
-We can start off by confirming that exposure to the interaction of FDI and migration drives an increase in support for the far right. We do this using time series data for all assembly constituencies in 11 states.
-Obs ≈ 2076
-
-
-```{r Probability that a moderate voter will vote for the far right}
-
-```
-To understand (a), we can use a logit model to regress whether a moderate voter voted for the far right on their exposure to our two shocks of interest, an interaction, and controls. We can do the same for left voters and right voters to check that the effect is stronger for moderates than either left (not going to vote for the right) or right (already voting for the right). So:
-Left Voter Voted for Far Right ~ FDI + Migration + FDI * Migration
-Moderate Voter Voted for Far Right ~ FDI + Migration + FDI * Migration
-Right Voter Voted for Far Right ~ FDI + Migration + FDI * Migration
-Obs ≈ 550
-
-
-```{r Share of moderate voters who do vote for the far right}
-library(dplyr)
-library(tidyr)
-library(purrr)
-library(stringr)
-library(broom)
-library(sf)
-
-# -----------------------------
-# 1. Prepare regression data
-# -----------------------------
-
-reg_data <- elec_cand_nes_ec_m_fdi %>%
-  { if (inherits(., "sf")) sf::st_drop_geometry(.) else . }
-
-# Optional: create migration-change variables
-reg_data <- reg_data %>%
-  mutate(
-    agr_diff_09_14 = agr_2014 - agr_2009,
-    log_agr_diff_09_14 = log_agr_2014 - log_agr_2009
-  )
-
-# -----------------------------
-# 2. Outcome variables
-# -----------------------------
-
-dv_specs <- tibble::tribble(
+dv_specs_raw <- tibble::tribble(
   ~election_year, ~ideology_group, ~dv,
   2009, "moderate", "loc_bjp_mod_vote_share_2009",
   2009, "right",    "loc_bjp_right_vote_share_2009",
@@ -1338,140 +1185,111 @@ dv_specs <- tibble::tribble(
   2014, "left",     "loc_bjp_left_vote_share_2014"
 )
 
-# Keep only outcome variables that exist
-dv_specs <- dv_specs %>%
-  filter(dv %in% names(reg_data))
+missing_dvs <- dv_specs_raw %>%
+  filter(!dv %in% names(reg_data))
+
+if (nrow(missing_dvs) > 0) {
+  print(missing_dvs)
+  stop("Some AC-share dependent variables are missing from reg_data.")
+}
+
+dv_specs <- dv_specs_raw
 
 # -----------------------------
-# 3. FDI and migration variables
+# Sanity checks
 # -----------------------------
 
-fdi_x1_vars <- names(reg_data) %>%
-  keep(~ str_detect(.x, "^fdi_x1"))
-
-fdi_x2_vars <- names(reg_data) %>%
-  keep(~ str_detect(.x, "^fdi_x2"))
-
-migration_2009_vars <- c(
-  "agr_2009",
-  "log_agr_2009",
-  "log_alloc_2011_Total_Persons_1-4",
-  "alloc_2011_Total_Persons_1-4"
+focused_variable_check <- list(
+  fdi_change_vars = fdi_change_vars,
+  fdi_x1_vars = fdi_x1_vars,
+  fdi_x2_vars = fdi_x2_vars,
+#  migration_change_vars = migration_change_vars,
+  migration_2009_vars = migration_2009_vars,
+  migration_2014_vars = migration_2014_vars,
+  control_sets = names(control_sets)
 )
 
-migration_2014_vars <- c(
-  "agr_2014",
-  "log_agr_2014",
-  "log_alloc_2011_Total_Persons_<1",
-  "alloc_2011_Total_Persons_<1",
-  "agr_diff_09_14",
-  "log_agr_diff_09_14"
-)
+focused_variable_check
+```
 
-migration_2009_vars <- intersect(migration_2009_vars, names(reg_data))
-migration_2014_vars <- intersect(migration_2014_vars, names(reg_data))
+```{r helper-functions, message=FALSE, warning=FALSE}
+# ============================================================
+# HELPER FUNCTIONS
+# ============================================================
 
-# -----------------------------
-# 4. Controls
-# -----------------------------
+safe_name <- function(x) {
+  x %>%
+    as.character() %>%
+    str_replace_all("[^A-Za-z0-9]+", "_") %>%
+    str_replace_all("_+", "_") %>%
+    str_replace_all("^_|_$", "") %>%
+    str_to_lower()
+}
 
-control_vars <- c(
-  "ec13_emp_all_ac_alloc",
-  "ec13_emp_f_ac_alloc",
-  "ec13_emp_m_ac_alloc",
-  "ec13_emp_gov_ac_alloc",
-  "ec13_emp_priv_ac_alloc",
-  "ec13_emp_own_m_ac_alloc",
-  "ec13_emp_own_f_ac_alloc",
-  "ec13_emp_st_ac_alloc",
-  "ec13_emp_sc_ac_alloc",
-  "ec13_emp_obc_ac_alloc"
-)
-
-control_vars <- intersect(control_vars, names(reg_data))
-
-control_sets <- list(
-  no_controls = character(0),
+write_tables_by_group <- function(df, group_vars, out_dir, prefix) {
   
-  employment_total = c(
-    "ec13_emp_all_ac_alloc"
-  ),
+  dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
   
-  employment_disaggregated = c(
-    "ec13_emp_f_ac_alloc",
-    "ec13_emp_m_ac_alloc",
-    "ec13_emp_gov_ac_alloc",
-    "ec13_emp_priv_ac_alloc",
-    "ec13_emp_own_m_ac_alloc",
-    "ec13_emp_own_f_ac_alloc",
-    "ec13_emp_st_ac_alloc",
-    "ec13_emp_sc_ac_alloc",
-    "ec13_emp_obc_ac_alloc"
+  if (nrow(df) == 0) {
+    empty_index <- tibble(
+      file_name = character(0),
+      file_path = character(0)
+    )
+    
+    readr::write_csv(
+      empty_index,
+      file.path(out_dir, paste0(prefix, "__index.csv"))
+    )
+    
+    return(list(index = empty_index, tables = list()))
+  }
+  
+  nested <- df %>%
+    group_by(across(all_of(group_vars))) %>%
+    group_nest(.key = "table") %>%
+    ungroup()
+  
+  make_file_name <- function(row_id) {
+    row <- nested[row_id, ]
+    
+    group_label <- group_vars %>%
+      map_chr(~ paste0(safe_name(.x), "-", safe_name(row[[.x]][[1]]))) %>%
+      paste(collapse = "__")
+    
+    paste0(prefix, "__", group_label, ".csv")
+  }
+  
+  nested <- nested %>%
+    mutate(
+      file_name = map_chr(row_number(), make_file_name),
+      file_path = file.path(out_dir, file_name)
+    )
+  
+  walk2(nested$table, nested$file_path, readr::write_csv)
+  
+  readr::write_csv(
+    nested %>% select(-table),
+    file.path(out_dir, paste0(prefix, "__index.csv"))
   )
-)
-
-# Drop controls from each set if they are not present
-control_sets <- map(control_sets, ~ intersect(.x, names(reg_data)))
-
-single_control_sets <- control_vars %>%
-  set_names(paste0("single_", .)) %>%
-  map(~ .x)
-
-control_sets <- c(control_sets, single_control_sets)
-
-# -----------------------------
-# 5. Build model grid
-# -----------------------------
-
-model_grid_2009 <- expand_grid(
-  dv_specs %>% filter(election_year == 2009),
-  migration_var = migration_2009_vars,
-  fdi_var = fdi_x1_vars,
-  control_set = names(control_sets)
-) %>%
-  mutate(
-    controls = map(control_set, ~ control_sets[[.x]])
+  
+  table_list <- nested$table
+  names(table_list) <- str_remove(nested$file_name, "\\.csv$")
+  
+  list(
+    index = nested %>% select(-table),
+    tables = table_list
   )
+}
 
-model_grid_2014 <- expand_grid(
-  dv_specs %>% filter(election_year == 2014),
-  migration_var = migration_2014_vars,
-  fdi_var = fdi_x2_vars,
-  control_set = names(control_sets)
-) %>%
-  mutate(
-    controls = map(control_set, ~ control_sets[[.x]])
-  )
-
-model_grid <- bind_rows(model_grid_2009, model_grid_2014)
-
-# -----------------------------
-# 6. Regression function
-# -----------------------------
-# Uses temporary names:
-# y ~ migration * fdi + control_1 + control_2 + ...
-#
-# This avoids errors from variables with names like:
-# alloc_2011_Total_Persons_<1
-# alloc_2011_Total_Persons_1-4
-
-run_cross_section_model <- function(data, dv, migration_var, fdi_var,
-                                    controls, election_year,
-                                    ideology_group, control_set_name) {
+tidy_lm_interaction <- function(data, dv, migration_var, fdi_var, controls,
+                                min_obs_base = 10) {
   
   controls <- controls[!is.na(controls) & controls != ""]
-  
   vars_needed <- unique(c(dv, migration_var, fdi_var, controls))
   missing_vars <- setdiff(vars_needed, names(data))
   
   if (length(missing_vars) > 0) {
     return(tibble(
-      election_year = election_year,
-      ideology_group = ideology_group,
-      dv = dv,
-      migration_var = migration_var,
-      fdi_var = fdi_var,
-      control_set = control_set_name,
       term = NA_character_,
       term_original = NA_character_,
       estimate = NA_real_,
@@ -1503,16 +1321,10 @@ run_cross_section_model <- function(data, dv, migration_var, fdi_var,
       if_all(where(is.numeric), ~ is.finite(.x))
     )
   
-  min_obs_needed <- max(10, length(controls) + 4)
+  min_obs_needed <- max(min_obs_base, length(controls) + 4)
   
   if (nrow(model_data) < min_obs_needed) {
     return(tibble(
-      election_year = election_year,
-      ideology_group = ideology_group,
-      dv = dv,
-      migration_var = migration_var,
-      fdi_var = fdi_var,
-      control_set = control_set_name,
       term = NA_character_,
       term_original = NA_character_,
       estimate = NA_real_,
@@ -1540,12 +1352,6 @@ run_cross_section_model <- function(data, dv, migration_var, fdi_var,
   
   if (inherits(model, "error")) {
     return(tibble(
-      election_year = election_year,
-      ideology_group = ideology_group,
-      dv = dv,
-      migration_var = migration_var,
-      fdi_var = fdi_var,
-      control_set = control_set_name,
       term = NA_character_,
       term_original = NA_character_,
       estimate = NA_real_,
@@ -1575,10 +1381,619 @@ run_cross_section_model <- function(data, dv, migration_var, fdi_var,
       term_original = controls
     )
   } else {
-    tibble(
-      term = character(0),
-      term_original = character(0)
+    tibble(term = character(0), term_original = character(0))
+  }
+  
+  term_lookup <- bind_rows(base_lookup, control_lookup)
+  
+  broom::tidy(model) %>%
+    left_join(term_lookup, by = "term") %>%
+    mutate(
+      term_original = coalesce(term_original, term),
+      n_obs = nobs(model),
+      r_squared = summary(model)$r.squared,
+      adj_r_squared = summary(model)$adj.r.squared,
+      error = NA_character_
     )
+}
+
+tidy_lm_additive <- function(data, dv, migration_var, fdi_var, controls,
+                             min_obs_base = 10) {
+  
+  controls <- controls[!is.na(controls) & controls != ""]
+  vars_needed <- unique(c(dv, migration_var, fdi_var, controls))
+  missing_vars <- setdiff(vars_needed, names(data))
+  
+  if (length(missing_vars) > 0) {
+    return(tibble(
+      model_type = "additive",
+      term = NA_character_,
+      term_original = NA_character_,
+      estimate = NA_real_,
+      std.error = NA_real_,
+      statistic = NA_real_,
+      p.value = NA_real_,
+      n_obs = NA_integer_,
+      r_squared = NA_real_,
+      adj_r_squared = NA_real_,
+      error = paste("Missing variables:", paste(missing_vars, collapse = ", "))
+    ))
+  }
+  
+  model_data <- tibble(
+    y = data[[dv]],
+    migration = data[[migration_var]],
+    fdi = data[[fdi_var]]
+  )
+  
+  if (length(controls) > 0) {
+    controls_df <- as_tibble(data[controls])
+    names(controls_df) <- paste0("control_", seq_along(controls))
+    model_data <- bind_cols(model_data, controls_df)
+  }
+  
+  model_data <- model_data %>%
+    filter(
+      if_all(everything(), ~ !is.na(.x)),
+      if_all(where(is.numeric), ~ is.finite(.x))
+    )
+  
+  min_obs_needed <- max(min_obs_base, length(controls) + 3)
+  
+  if (nrow(model_data) < min_obs_needed) {
+    return(tibble(
+      model_type = "additive",
+      term = NA_character_,
+      term_original = NA_character_,
+      estimate = NA_real_,
+      std.error = NA_real_,
+      statistic = NA_real_,
+      p.value = NA_real_,
+      n_obs = nrow(model_data),
+      r_squared = NA_real_,
+      adj_r_squared = NA_real_,
+      error = "Too few complete observations"
+    ))
+  }
+  
+  rhs_terms <- c(
+    "migration",
+    "fdi",
+    if (length(controls) > 0) paste0("control_", seq_along(controls)) else character(0)
+  )
+  
+  fml <- reformulate(rhs_terms, response = "y")
+  
+  model <- tryCatch(
+    lm(fml, data = model_data),
+    error = function(e) e
+  )
+  
+  if (inherits(model, "error")) {
+    return(tibble(
+      model_type = "additive",
+      term = NA_character_,
+      term_original = NA_character_,
+      estimate = NA_real_,
+      std.error = NA_real_,
+      statistic = NA_real_,
+      p.value = NA_real_,
+      n_obs = nrow(model_data),
+      r_squared = NA_real_,
+      adj_r_squared = NA_real_,
+      error = model$message
+    ))
+  }
+  
+  base_lookup <- tibble(
+  term = c("(Intercept)", "migration", "fdi"),
+  term_original = c("(Intercept)", migration_var, fdi_var)
+)
+
+control_lookup <- if (length(controls) > 0) {
+  tibble(
+    term = paste0("control_", seq_along(controls)),
+    term_original = controls
+  )
+} else {
+  tibble(
+    term = character(0),
+    term_original = character(0)
+  )
+}
+
+term_lookup <- bind_rows(base_lookup, control_lookup)
+  
+  broom::tidy(model) %>%
+    left_join(term_lookup, by = "term") %>%
+    mutate(
+      model_type = "additive",
+      term_original = coalesce(term_original, term),
+      n_obs = nobs(model),
+      r_squared = summary(model)$r.squared,
+      adj_r_squared = summary(model)$adj.r.squared,
+      error = NA_character_
+    )
+}
+
+make_terms_table <- function(results_df, include_model_type = FALSE) {
+  
+  out <- results_df %>%
+    filter(term %in% c("migration", "fdi", "migration:fdi")) %>%
+    mutate(
+      component = case_when(
+        term == "migration" ~ "migration_main_effect",
+        term == "fdi" ~ "fdi_main_effect",
+        term == "migration:fdi" ~ "interaction",
+        TRUE ~ term
+      ),
+      stars = case_when(
+        p.value < 0.01 ~ "***",
+        p.value < 0.05 ~ "**",
+        p.value < 0.10 ~ "*",
+        TRUE ~ ""
+      )
+    )
+  
+  out
+}
+```
+
+```{r time-series-models, message=FALSE, warning=FALSE}
+# ============================================================
+# TIME-SERIES / CHANGE MODELS
+# Outcome: change in far-right vote share
+# ============================================================
+
+time_series_dv <- "fr_vote_share_change"
+
+time_series_grid <- expand_grid(
+  dv = time_series_dv,
+  migration_var = migration_2014_vars,
+  fdi_var = fdi_change_vars,
+  control_set = names(control_sets)
+) %>%
+  mutate(
+    controls = map(control_set, ~ control_sets[[.x]])
+  )
+
+time_series_grid %>% count(fdi_var)
+time_series_grid %>% count(migration_var)
+time_series_grid %>% count(control_set)
+
+time_series_results <- time_series_grid %>%
+  mutate(
+    results = pmap(
+      list(dv, migration_var, fdi_var, controls, control_set),
+      ~ tidy_lm_interaction(
+          data = reg_data,
+          dv = ..1,
+          migration_var = ..2,
+          fdi_var = ..3,
+          controls = ..4
+        ) %>%
+        mutate(
+          model_family = "time_series_change",
+          dv = ..1,
+          migration_var = ..2,
+          fdi_var = ..3,
+          control_set = ..5
+        )
+    )
+  ) %>%
+  select(results) %>%
+  unnest(results)
+
+time_series_terms <- make_terms_table(time_series_results) %>%
+  transmute(
+    model_family,
+    dv,
+    migration_var,
+    fdi_var,
+    control_set,
+    component,
+    term_original,
+    coefficient = estimate,
+    se = std.error,
+    t_stat = statistic,
+    p_value = p.value,
+    stars,
+    n_obs,
+    r_squared,
+    adj_r_squared,
+    error
+  ) %>%
+  arrange(dv, migration_var, fdi_var, control_set, component)
+
+time_series_interactions <- time_series_terms %>%
+  filter(component == "interaction") %>%
+  arrange(p_value)
+
+# Optional additive models without interaction
+time_series_additive_results <- time_series_grid %>%
+  mutate(
+    results = pmap(
+      list(dv, migration_var, fdi_var, controls, control_set),
+      ~ tidy_lm_additive(
+          data = reg_data,
+          dv = ..1,
+          migration_var = ..2,
+          fdi_var = ..3,
+          controls = ..4
+        ) %>%
+        mutate(
+          model_family = "time_series_change",
+          dv = ..1,
+          migration_var = ..2,
+          fdi_var = ..3,
+          control_set = ..5
+        )
+    )
+  ) %>%
+  select(results) %>%
+  unnest(results)
+
+time_series_additive_terms <- time_series_additive_results %>%
+  filter(term %in% c("migration", "fdi")) %>%
+  mutate(
+    component = case_when(
+      term == "migration" ~ "migration_additive_effect",
+      term == "fdi" ~ "fdi_additive_effect"
+    ),
+    stars = case_when(
+      p.value < 0.01 ~ "***",
+      p.value < 0.05 ~ "**",
+      p.value < 0.10 ~ "*",
+      TRUE ~ ""
+    )
+  ) %>%
+  transmute(
+    model_family,
+    dv,
+    migration_var,
+    fdi_var,
+    control_set,
+    component,
+    term_original,
+    coefficient = estimate,
+    se = std.error,
+    t_stat = statistic,
+    p_value = p.value,
+    stars,
+    n_obs,
+    r_squared,
+    adj_r_squared,
+    error
+  )
+```
+
+```{r voter-logit-models, message=FALSE, warning=FALSE}
+# ============================================================
+# VOTER-LEVEL LOGIT MODELS
+# Outcome: individual voter voted far right
+# ============================================================
+
+# -----------------------------
+# Assembly-level treatment data for voter-level merge
+# -----------------------------
+
+ac_treatments <- reg_data %>%
+  mutate(
+    State_no2011 = as.integer(State_no2011),
+    ac = as.integer(ac)
+  ) %>%
+  select(
+    State_no2011,
+    ac,
+    any_of(c(
+      fdi_x1_vars,
+      fdi_x2_vars,
+      migration_2009_vars,
+      migration_2014_vars,
+      control_vars
+    ))
+  ) %>%
+  distinct(State_no2011, ac, .keep_all = TRUE)
+
+bjp_codes <- c(2, 46, 91)
+
+nes_2009_voter <- nes_2009 %>%
+  mutate(
+    State_no2011 = as.integer(State_no2011),
+    ac = as.integer(ac_id),
+    election_year = 2009,
+    voted_fr = case_when(
+      is.na(q1a) ~ NA_real_,
+      q1a %in% bjp_codes ~ 1,
+      TRUE ~ 0
+    ),
+    recognition_score = rowMeans(
+      pick(z_a6a, z_a5, z_a4c, z_a4b),
+      na.rm = TRUE
+    ),
+    statism_score = rowMeans(
+      pick(z_a4d, z_a4g, z_q26a, z_a6b, z_q27),
+      na.rm = TRUE
+    ),
+    recognition_score = if_else(is.nan(recognition_score), NA_real_, recognition_score),
+    statism_score = if_else(is.nan(statism_score), NA_real_, statism_score),
+    ideology_group = case_when(
+      recognition_score > -0.25 & recognition_score < 0.25 &
+        statism_score > -0.25 & statism_score < 0.25 ~ "moderate",
+      recognition_score > 0.25 &
+        statism_score > 0.25 ~ "right",
+      recognition_score < -0.25 &
+        statism_score < -0.25 ~ "left",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  left_join(ac_treatments, by = c("State_no2011", "ac"))
+
+nes_2014_voter <- nes_2014 %>%
+  mutate(
+    State_no2011 = as.integer(State_no2011),
+    ac = as.integer(ac_id),
+    election_year = 2014,
+    voted_fr = case_when(
+      is.na(q1a) ~ NA_real_,
+      q1a %in% bjp_codes ~ 1,
+      TRUE ~ 0
+    ),
+    recognition_score = rowMeans(
+      pick(z_q10b, z_q10e),
+      na.rm = TRUE
+    ),
+    statism_score = q23c,
+    recognition_score = if_else(is.nan(recognition_score), NA_real_, recognition_score),
+    statism_score = if_else(is.nan(statism_score), NA_real_, statism_score),
+    ideology_group = case_when(
+      recognition_score > -0.25 & recognition_score < 0.25 &
+        statism_score > -0.25 & statism_score < 0.25 ~ "moderate",
+      recognition_score > 0.25 &
+        statism_score > 0.25 ~ "right",
+      recognition_score < -0.25 &
+        statism_score < -0.25 ~ "left",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  left_join(ac_treatments, by = c("State_no2011", "ac"))
+
+voter_reg_data <- bind_rows(nes_2009_voter, nes_2014_voter) %>%
+  filter(
+    !is.na(voted_fr),
+    !is.na(ideology_group),
+    !is.na(State_no2011),
+    !is.na(ac)
+  ) %>%
+  mutate(
+    across(starts_with("fdi_"), ~ replace_na(.x, 0))
+  )
+
+voter_group_counts <- voter_reg_data %>%
+  group_by(election_year, ideology_group) %>%
+  summarise(
+    n = n(),
+    n_far_right = sum(voted_fr == 1, na.rm = TRUE),
+    n_not_far_right = sum(voted_fr == 0, na.rm = TRUE),
+    far_right_share = mean(voted_fr == 1, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+voter_merge_diagnostics <- voter_reg_data %>%
+  summarise(
+    n_voters = n(),
+    n_missing_fdi_x1_total_n = sum(is.na(fdi_x1_total_n)),
+    n_missing_fdi_x2_total_n = sum(is.na(fdi_x2_total_n)),
+    n_missing_agr_2009 = sum(is.na(agr_2009)),
+    n_missing_agr_2014 = sum(is.na(agr_2014))
+  )
+
+voter_fdi_x1_vars <- intersect(fdi_x1_vars, names(voter_reg_data))
+voter_fdi_x2_vars <- intersect(fdi_x2_vars, names(voter_reg_data))
+voter_migration_2009_vars <- intersect(migration_2009_vars, names(voter_reg_data))
+voter_migration_2014_vars <- intersect(migration_2014_vars, names(voter_reg_data))
+voter_control_sets <- map(control_sets, ~ intersect(.x, names(voter_reg_data)))
+
+voter_model_grid_2009 <- expand_grid(
+  election_year = 2009,
+  ideology_group = c("left", "moderate", "right"),
+  migration_var = voter_migration_2009_vars,
+  fdi_var = voter_fdi_x1_vars,
+  control_set = names(voter_control_sets)
+) %>%
+  mutate(
+    controls = map(control_set, ~ voter_control_sets[[.x]])
+  )
+
+voter_model_grid_2014 <- expand_grid(
+  election_year = 2014,
+  ideology_group = c("left", "moderate", "right"),
+  migration_var = voter_migration_2014_vars,
+  fdi_var = voter_fdi_x2_vars,
+  control_set = names(voter_control_sets)
+) %>%
+  mutate(
+    controls = map(control_set, ~ voter_control_sets[[.x]])
+  )
+
+voter_model_grid <- bind_rows(
+  voter_model_grid_2009,
+  voter_model_grid_2014
+)
+
+voter_model_grid %>% count(election_year, fdi_var)
+
+run_voter_logit <- function(data, election_year, ideology_group,
+                            migration_var, fdi_var, controls, control_set_name) {
+  
+  controls <- controls[!is.na(controls) & controls != ""]
+  
+  vars_needed <- unique(c("voted_fr", migration_var, fdi_var, controls))
+  missing_vars <- setdiff(vars_needed, names(data))
+  
+  if (length(missing_vars) > 0) {
+    return(tibble(
+      election_year = election_year,
+      ideology_group = ideology_group,
+      migration_var = migration_var,
+      fdi_var = fdi_var,
+      control_set = control_set_name,
+      term = NA_character_,
+      term_original = NA_character_,
+      estimate = NA_real_,
+      std.error = NA_real_,
+      statistic = NA_real_,
+      p.value = NA_real_,
+      odds_ratio = NA_real_,
+      n_obs = NA_integer_,
+      n_far_right = NA_integer_,
+      n_not_far_right = NA_integer_,
+      min_fitted = NA_real_,
+      max_fitted = NA_real_,
+      warning = NA_character_,
+      error = paste("Missing variables:", paste(missing_vars, collapse = ", "))
+    ))
+  }
+  
+  filtered_data <- data %>%
+    filter(
+      election_year == !!election_year,
+      ideology_group == !!ideology_group
+    )
+  
+  model_data <- tibble(
+    y = filtered_data[["voted_fr"]],
+    migration = filtered_data[[migration_var]],
+    fdi = filtered_data[[fdi_var]]
+  )
+  
+  if (length(controls) > 0) {
+    controls_df <- filtered_data[, controls, drop = FALSE] %>%
+      as_tibble()
+    names(controls_df) <- paste0("control_", seq_along(controls))
+    model_data <- bind_cols(model_data, controls_df)
+  }
+  
+  model_data <- model_data %>%
+    filter(
+      if_all(everything(), ~ !is.na(.x)),
+      if_all(where(is.numeric), ~ is.finite(.x))
+    )
+  
+  min_obs_needed <- max(30, length(controls) + 5)
+  
+  if (nrow(model_data) < min_obs_needed) {
+    return(tibble(
+      election_year = election_year,
+      ideology_group = ideology_group,
+      migration_var = migration_var,
+      fdi_var = fdi_var,
+      control_set = control_set_name,
+      term = NA_character_,
+      term_original = NA_character_,
+      estimate = NA_real_,
+      std.error = NA_real_,
+      statistic = NA_real_,
+      p.value = NA_real_,
+      odds_ratio = NA_real_,
+      n_obs = nrow(model_data),
+      n_far_right = sum(model_data$y == 1, na.rm = TRUE),
+      n_not_far_right = sum(model_data$y == 0, na.rm = TRUE),
+      min_fitted = NA_real_,
+      max_fitted = NA_real_,
+      warning = NA_character_,
+      error = "Too few complete observations"
+    ))
+  }
+  
+  if (length(unique(model_data$y)) < 2) {
+    return(tibble(
+      election_year = election_year,
+      ideology_group = ideology_group,
+      migration_var = migration_var,
+      fdi_var = fdi_var,
+      control_set = control_set_name,
+      term = NA_character_,
+      term_original = NA_character_,
+      estimate = NA_real_,
+      std.error = NA_real_,
+      statistic = NA_real_,
+      p.value = NA_real_,
+      odds_ratio = NA_real_,
+      n_obs = nrow(model_data),
+      n_far_right = sum(model_data$y == 1, na.rm = TRUE),
+      n_not_far_right = sum(model_data$y == 0, na.rm = TRUE),
+      min_fitted = NA_real_,
+      max_fitted = NA_real_,
+      warning = NA_character_,
+      error = "Outcome has no variation"
+    ))
+  }
+  
+  rhs_terms <- c(
+    "migration * fdi",
+    if (length(controls) > 0) paste0("control_", seq_along(controls)) else character(0)
+  )
+  
+  fml <- reformulate(rhs_terms, response = "y")
+  model_warnings <- character(0)
+  
+  model <- tryCatch(
+    withCallingHandlers(
+      glm(fml, data = model_data, family = binomial(link = "logit")),
+      warning = function(w) {
+        model_warnings <<- c(model_warnings, conditionMessage(w))
+        invokeRestart("muffleWarning")
+      }
+    ),
+    error = function(e) e
+  )
+  
+  if (inherits(model, "error")) {
+    return(tibble(
+      election_year = election_year,
+      ideology_group = ideology_group,
+      migration_var = migration_var,
+      fdi_var = fdi_var,
+      control_set = control_set_name,
+      term = NA_character_,
+      term_original = NA_character_,
+      estimate = NA_real_,
+      std.error = NA_real_,
+      statistic = NA_real_,
+      p.value = NA_real_,
+      odds_ratio = NA_real_,
+      n_obs = nrow(model_data),
+      n_far_right = sum(model_data$y == 1, na.rm = TRUE),
+      n_not_far_right = sum(model_data$y == 0, na.rm = TRUE),
+      min_fitted = NA_real_,
+      max_fitted = NA_real_,
+      warning = if_else(
+        length(model_warnings) > 0,
+        paste(unique(model_warnings), collapse = "; "),
+        NA_character_
+      ),
+      error = model$message
+    ))
+  }
+  
+  base_lookup <- tibble(
+    term = c("(Intercept)", "migration", "fdi", "migration:fdi"),
+    term_original = c(
+      "(Intercept)",
+      migration_var,
+      fdi_var,
+      paste0(migration_var, ":", fdi_var)
+    )
+  )
+  
+  control_lookup <- if (length(controls) > 0) {
+    tibble(
+      term = paste0("control_", seq_along(controls)),
+      term_original = controls
+    )
+  } else {
+    tibble(term = character(0), term_original = character(0))
   }
   
   term_lookup <- bind_rows(base_lookup, control_lookup)
@@ -1589,39 +2004,178 @@ run_cross_section_model <- function(data, dv, migration_var, fdi_var,
       term_original = coalesce(term_original, term),
       election_year = election_year,
       ideology_group = ideology_group,
-      dv = dv,
       migration_var = migration_var,
       fdi_var = fdi_var,
       control_set = control_set_name,
+      odds_ratio = exp(estimate),
       n_obs = nobs(model),
-      r_squared = summary(model)$r.squared,
-      adj_r_squared = summary(model)$adj.r.squared,
+      n_far_right = sum(model_data$y == 1, na.rm = TRUE),
+      n_not_far_right = sum(model_data$y == 0, na.rm = TRUE),
+      min_fitted = min(fitted(model), na.rm = TRUE),
+      max_fitted = max(fitted(model), na.rm = TRUE),
+      warning = if_else(
+        length(model_warnings) > 0,
+        paste(unique(model_warnings), collapse = "; "),
+        NA_character_
+      ),
       error = NA_character_
     )
 }
 
-# -----------------------------
-# 7. Test one model
-# -----------------------------
+voter_logit_results <- voter_model_grid %>%
+  mutate(
+    results = pmap(
+      list(
+        election_year,
+        ideology_group,
+        migration_var,
+        fdi_var,
+        controls,
+        control_set
+      ),
+      ~ run_voter_logit(
+        data = voter_reg_data,
+        election_year = ..1,
+        ideology_group = ..2,
+        migration_var = ..3,
+        fdi_var = ..4,
+        controls = ..5,
+        control_set_name = ..6
+      )
+    )
+  ) %>%
+  select(results) %>%
+  unnest(results)
 
-test_cross_section_result <- run_cross_section_model(
-  data = reg_data,
-  dv = model_grid$dv[[1]],
-  migration_var = model_grid$migration_var[[1]],
-  fdi_var = model_grid$fdi_var[[1]],
-  controls = model_grid$controls[[1]],
-  election_year = model_grid$election_year[[1]],
-  ideology_group = model_grid$ideology_group[[1]],
-  control_set_name = model_grid$control_set[[1]]
+voter_logit_terms <- voter_logit_results %>%
+  filter(term %in% c("migration", "fdi", "migration:fdi")) %>%
+  mutate(
+    dv = "voted_fr",
+    component = case_when(
+      term == "migration" ~ "migration_main_effect",
+      term == "fdi" ~ "fdi_main_effect",
+      term == "migration:fdi" ~ "interaction"
+    ),
+    stars = case_when(
+      p.value < 0.01 ~ "***",
+      p.value < 0.05 ~ "**",
+      p.value < 0.10 ~ "*",
+      TRUE ~ ""
+    ),
+    likely_unstable = if_else(
+      !is.na(warning) | abs(estimate) > 10 | std.error > 10,
+      TRUE,
+      FALSE
+    )
+  ) %>%
+  transmute(
+    election_year,
+    ideology_group,
+    dv,
+    migration_var,
+    fdi_var,
+    control_set,
+    component,
+    term_original,
+    logit_coefficient = estimate,
+    odds_ratio,
+    se = std.error,
+    z_stat = statistic,
+    p_value = p.value,
+    stars,
+    n_obs,
+    n_far_right,
+    n_not_far_right,
+    min_fitted,
+    max_fitted,
+    likely_unstable,
+    warning,
+    error
+  )
+
+voter_logit_interactions <- voter_logit_terms %>%
+  filter(component == "interaction") %>%
+  arrange(election_year, migration_var, fdi_var, ideology_group, p_value)
+
+voter_logit_compare <- voter_logit_interactions %>%
+  select(
+    election_year,
+    migration_var,
+    fdi_var,
+    control_set,
+    ideology_group,
+    logit_coefficient,
+    odds_ratio,
+    se,
+    p_value,
+    n_obs,
+    likely_unstable
+  ) %>%
+  pivot_wider(
+    names_from = ideology_group,
+    values_from = c(
+      logit_coefficient,
+      odds_ratio,
+      se,
+      p_value,
+      n_obs,
+      likely_unstable
+    )
+  )
+
+problem_models <- voter_logit_results %>%
+  filter(!is.na(warning) | !is.na(error)) %>%
+  distinct(
+    election_year,
+    ideology_group,
+    migration_var,
+    fdi_var,
+    control_set,
+    n_obs,
+    n_far_right,
+    n_not_far_right,
+    min_fitted,
+    max_fitted,
+    warning,
+    error
+  ) %>%
+  arrange(election_year, ideology_group, control_set)
+```
+
+```{r ac-share-models, message=FALSE, warning=FALSE}
+# ============================================================
+# AC-LEVEL IDEOLOGY-SHARE MODELS
+# Outcome: share of left/moderate/right voters voting far right
+# ============================================================
+
+ac_share_grid_2009 <- expand_grid(
+  dv_specs %>% filter(election_year == 2009),
+  migration_var = migration_2009_vars,
+  fdi_var = fdi_x1_vars,
+  control_set = names(control_sets)
+) %>%
+  mutate(
+    controls = map(control_set, ~ control_sets[[.x]])
+  )
+
+ac_share_grid_2014 <- expand_grid(
+  dv_specs %>% filter(election_year == 2014),
+  migration_var = migration_2014_vars,
+  fdi_var = fdi_x2_vars,
+  control_set = names(control_sets)
+) %>%
+  mutate(
+    controls = map(control_set, ~ control_sets[[.x]])
+  )
+
+ac_share_grid <- bind_rows(
+  ac_share_grid_2009,
+  ac_share_grid_2014
 )
 
-test_cross_section_result
+ac_share_grid %>% count(election_year, fdi_var)
 
-# -----------------------------
-# 8. Run all models
-# -----------------------------
-
-cross_section_results <- model_grid %>%
+cross_section_results <- ac_share_grid %>%
   mutate(
     results = pmap(
       list(
@@ -1633,46 +2187,38 @@ cross_section_results <- model_grid %>%
         ideology_group,
         control_set
       ),
-      ~ run_cross_section_model(
-        data = reg_data,
-        dv = ..1,
-        migration_var = ..2,
-        fdi_var = ..3,
-        controls = ..4,
-        election_year = ..5,
-        ideology_group = ..6,
-        control_set_name = ..7
-      )
+      ~ tidy_lm_interaction(
+          data = reg_data,
+          dv = ..1,
+          migration_var = ..2,
+          fdi_var = ..3,
+          controls = ..4
+        ) %>%
+        mutate(
+          model_family = "ac_share",
+          dv = ..1,
+          migration_var = ..2,
+          fdi_var = ..3,
+          election_year = ..5,
+          ideology_group = ..6,
+          control_set = ..7
+        )
     )
   ) %>%
   select(results) %>%
   unnest(results)
 
-# -----------------------------
-# 9. Extract interaction terms
-# -----------------------------
-
-cross_section_interactions <- cross_section_results %>%
-  filter(term == "migration:fdi") %>%
-  mutate(
-    stars = case_when(
-      p.value < 0.01 ~ "***",
-      p.value < 0.05 ~ "**",
-      p.value < 0.10 ~ "*",
-      TRUE ~ ""
-    )
-  ) %>%
-  arrange(election_year, ideology_group, p.value)
-
-cross_section_table <- cross_section_interactions %>%
+cross_section_terms <- make_terms_table(cross_section_results) %>%
   transmute(
+    model_family,
     election_year,
     ideology_group,
     dv,
     migration_var,
     fdi_var,
     control_set,
-    interaction_term = term_original,
+    component,
+    term_original,
     coefficient = estimate,
     se = std.error,
     t_stat = statistic,
@@ -1683,14 +2229,1013 @@ cross_section_table <- cross_section_interactions %>%
     adj_r_squared,
     error
   ) %>%
-  arrange(election_year, ideology_group, migration_var, fdi_var, control_set)
+  arrange(election_year, ideology_group, dv, migration_var, fdi_var, control_set, component)
 
-View(cross_section_table)
+cross_section_interactions <- cross_section_terms %>%
+  filter(component == "interaction") %>%
+  arrange(election_year, ideology_group, p_value)
 
+# Optional additive AC-share models
+cross_section_additive_results <- ac_share_grid %>%
+  mutate(
+    results = pmap(
+      list(
+        dv,
+        migration_var,
+        fdi_var,
+        controls,
+        election_year,
+        ideology_group,
+        control_set
+      ),
+      ~ tidy_lm_additive(
+          data = reg_data,
+          dv = ..1,
+          migration_var = ..2,
+          fdi_var = ..3,
+          controls = ..4
+        ) %>%
+        mutate(
+          model_family = "ac_share",
+          dv = ..1,
+          migration_var = ..2,
+          fdi_var = ..3,
+          election_year = ..5,
+          ideology_group = ..6,
+          control_set = ..7
+        )
+    )
+  ) %>%
+  select(results) %>%
+  unnest(results)
+
+cross_section_additive_terms <- cross_section_additive_results %>%
+  filter(term %in% c("migration", "fdi")) %>%
+  mutate(
+    component = case_when(
+      term == "migration" ~ "migration_additive_effect",
+      term == "fdi" ~ "fdi_additive_effect"
+    ),
+    stars = case_when(
+      p.value < 0.01 ~ "***",
+      p.value < 0.05 ~ "**",
+      p.value < 0.10 ~ "*",
+      TRUE ~ ""
+    )
+  ) %>%
+  transmute(
+    model_family,
+    election_year,
+    ideology_group,
+    dv,
+    migration_var,
+    fdi_var,
+    control_set,
+    component,
+    term_original,
+    coefficient = estimate,
+    se = std.error,
+    t_stat = statistic,
+    p_value = p.value,
+    stars,
+    n_obs,
+    r_squared,
+    adj_r_squared,
+    error
+  )
 ```
-To understand (b), we can regress the vote share of far right parties among moderate voters in an assembly constituency on an assembly constituency’s exposure to our two shocks of interest, an interaction, and controls. We can do the same for the vote share of far right parties among left and right voters to check that the effect is stronger for moderates than either left (not going to vote for the right) or right (already voting for the right). So:
-Share of Left Voters Voting Far Right ~ FDI + Migration + FDI * Migration
-Share of Moderate Voters Voting Far Right ~ FDI + Migration + FDI * Migration
-Share of Right Voters Voting Far Right ~ FDI + Migration + FDI * Migration
-Obs ≈ 550
+
+```{r marginal-effects, message=FALSE, warning=FALSE}
+# ============================================================
+# MARGINAL EFFECTS FOR AC-SHARE MODELS
+# ============================================================
+
+fit_ac_share_model <- function(data, dv, migration_var, fdi_var,
+                               controls = character(0)) {
+  
+  controls <- controls[!is.na(controls) & controls != ""]
+  
+  vars_needed <- unique(c(dv, migration_var, fdi_var, controls))
+  missing_vars <- setdiff(vars_needed, names(data))
+  
+  if (length(missing_vars) > 0) {
+    stop("Missing variables: ", paste(missing_vars, collapse = ", "))
+  }
+  
+  model_data <- tibble(
+    y = data[[dv]],
+    migration = data[[migration_var]],
+    fdi = data[[fdi_var]]
+  )
+  
+  if (length(controls) > 0) {
+    controls_df <- as_tibble(data[controls])
+    names(controls_df) <- paste0("control_", seq_along(controls))
+    model_data <- bind_cols(model_data, controls_df)
+  }
+  
+  model_data <- model_data %>%
+    filter(
+      if_all(everything(), ~ !is.na(.x)),
+      if_all(where(is.numeric), ~ is.finite(.x))
+    )
+  
+  rhs_terms <- c(
+    "migration * fdi",
+    if (length(controls) > 0) paste0("control_", seq_along(controls)) else character(0)
+  )
+  
+  fml <- reformulate(rhs_terms, response = "y")
+  model <- lm(fml, data = model_data)
+  
+  list(
+    model = model,
+    model_data = model_data,
+    dv = dv,
+    migration_var = migration_var,
+    fdi_var = fdi_var,
+    controls = controls
+  )
+}
+
+get_marginal_effect_summary <- function(dv, migration_var, fdi_var, control_set,
+                                        n_grid = 50) {
+  
+  fit_obj <- fit_ac_share_model(
+    data = reg_data,
+    dv = dv,
+    migration_var = migration_var,
+    fdi_var = fdi_var,
+    controls = control_sets[[control_set]]
+  )
+  
+  fdi_grid <- seq(
+    quantile(fit_obj$model_data$fdi, 0.05, na.rm = TRUE),
+    quantile(fit_obj$model_data$fdi, 0.95, na.rm = TRUE),
+    length.out = n_grid
+  )
+  
+  me <- marginaleffects::slopes(
+    fit_obj$model,
+    variables = "migration",
+    newdata = marginaleffects::datagrid(
+      fdi = fdi_grid
+    )
+  ) %>%
+    as_tibble() %>%
+    mutate(
+      fdi_value = fdi,
+      me_significant_positive = conf.low > 0,
+      me_significant_negative = conf.high < 0,
+      me_significant = me_significant_positive | me_significant_negative
+    )
+  
+  me_summary <- me %>%
+    summarise(
+      min_fdi = min(fdi_value, na.rm = TRUE),
+      max_fdi = max(fdi_value, na.rm = TRUE),
+      min_marginal_effect = min(estimate, na.rm = TRUE),
+      max_marginal_effect = max(estimate, na.rm = TRUE),
+      mean_marginal_effect = mean(estimate, na.rm = TRUE),
+      n_grid = n(),
+      n_sig_positive = sum(me_significant_positive, na.rm = TRUE),
+      n_sig_negative = sum(me_significant_negative, na.rm = TRUE),
+      n_sig_any = sum(me_significant, na.rm = TRUE),
+      share_grid_sig_positive = mean(me_significant_positive, na.rm = TRUE),
+      share_grid_sig_negative = mean(me_significant_negative, na.rm = TRUE),
+      share_grid_sig_any = mean(me_significant, na.rm = TRUE),
+      status = case_when(
+        n_sig_positive > 0 & n_sig_negative == 0 ~ "Migration effect significantly positive somewhere",
+        n_sig_negative > 0 & n_sig_positive == 0 ~ "Migration effect significantly negative somewhere",
+        n_sig_positive > 0 & n_sig_negative > 0 ~ "Migration effect changes sign significantly",
+        TRUE ~ "Interaction significant, but marginal migration effect not significant on grid"
+      ),
+      .groups = "drop"
+    )
+  
+  list(
+    marginal_effects = me,
+    summary = me_summary
+  )
+}
+
+# Screen significant interactions, but only within the focused FDI universe
+models_for_me <- cross_section_interactions %>%
+  filter(
+    is.na(error),
+    !is.na(p_value),
+    p_value < 0.05
+  ) %>%
+  arrange(p_value)
+
+if (nrow(models_for_me) > 0) {
+  
+  me_results <- models_for_me %>%
+    mutate(
+      me_object = pmap(
+        list(dv, migration_var, fdi_var, control_set),
+        ~ get_marginal_effect_summary(
+          dv = ..1,
+          migration_var = ..2,
+          fdi_var = ..3,
+          control_set = ..4
+        )
+      ),
+      me_summary = map(me_object, "summary"),
+      me_grid = map(me_object, "marginal_effects")
+    )
+  
+  marginal_effect_status <- me_results %>%
+    select(
+      election_year,
+      ideology_group,
+      dv,
+      migration_var,
+      fdi_var,
+      control_set,
+      coefficient,
+      se,
+      p_value,
+      stars,
+      n_obs,
+      r_squared,
+      me_summary
+    ) %>%
+    unnest(me_summary) %>%
+    mutate(
+      likely_useful_plot = share_grid_sig_any > 0,
+      weak_me_result = share_grid_sig_any == 0,
+      strong_me_result = share_grid_sig_any >= 0.25
+    ) %>%
+    arrange(desc(share_grid_sig_any), p_value)
+  
+  marginal_effect_grid <- me_results %>%
+    mutate(
+      me_grid = map(
+        me_grid,
+        ~ .x %>%
+          select(-any_of(c("dv", "migration_var", "fdi_var", "control_set")))
+      )
+    ) %>%
+    select(
+      election_year,
+      ideology_group,
+      dv,
+      migration_var,
+      fdi_var,
+      control_set,
+      p_value,
+      me_grid
+    ) %>%
+    unnest(me_grid)
+  
+  models_to_plot_from_screen <- marginal_effect_status %>%
+  arrange(election_year, ideology_group, p_value)
+  
+} else {
+  
+  me_results <- tibble()
+  marginal_effect_status <- tibble()
+  marginal_effect_grid <- tibble()
+  models_to_plot_from_screen <- tibble()
+}
+
+plot_screened_marginal_effect <- function(dv, migration_var, fdi_var, control_set) {
+  
+  fit_obj <- fit_ac_share_model(
+    data = reg_data,
+    dv = dv,
+    migration_var = migration_var,
+    fdi_var = fdi_var,
+    controls = control_sets[[control_set]]
+  )
+  
+  fdi_grid <- seq(
+    quantile(fit_obj$model_data$fdi, 0.05, na.rm = TRUE),
+    quantile(fit_obj$model_data$fdi, 0.95, na.rm = TRUE),
+    length.out = 50
+  )
+  
+  marginaleffects::plot_slopes(
+    fit_obj$model,
+    variables = "migration",
+    condition = list(fdi = fdi_grid)
+  ) +
+    labs(
+      title = "Marginal effect of migration across FDI exposure",
+      subtitle = paste0(
+        "Outcome: ", dv,
+        "\nMigration: ", migration_var,
+        "\nFDI: ", fdi_var,
+        "\nControls: ", control_set
+      ),
+      x = fdi_var,
+      y = paste0("Marginal effect of ", migration_var)
+    ) +
+    theme_minimal()
+}
+
+if (nrow(models_to_plot_from_screen) > 0) {
+  
+  plot_specs <- models_to_plot_from_screen %>%
+    select(dv, migration_var, fdi_var, control_set) %>%
+    distinct() %>%
+    mutate(
+      plot_file = paste0(
+  "outputs/figures/marginal_effects_migration_across_fdi/",
+  "me_migration__dv-", safe_name(dv),
+  "__migration-", safe_name(migration_var),
+  "__fdi-", safe_name(fdi_var),
+  "__controls-", safe_name(control_set),
+  ".png"
+)
+    )
+  
+  screened_marginal_effect_plots <- pmap(
+    plot_specs %>% select(dv, migration_var, fdi_var, control_set),
+    ~ plot_screened_marginal_effect(
+      dv = ..1,
+      migration_var = ..2,
+      fdi_var = ..3,
+      control_set = ..4
+    )
+  )
+  
+} else {
+  
+  plot_specs <- tibble()
+  screened_marginal_effect_plots <- list()
+}
+```
+
+```{r write-outputs, message=FALSE, warning=FALSE}
+# ============================================================
+# WRITE OUTPUTS
+# ============================================================
+
+dir.create("outputs/tables/time_series_change", recursive = TRUE, showWarnings = FALSE)
+dir.create("outputs/tables/voter_logit_models", recursive = TRUE, showWarnings = FALSE)
+dir.create("outputs/tables/ac_share_models", recursive = TRUE, showWarnings = FALSE)
+dir.create("outputs/tables/marginal_effect_status", recursive = TRUE, showWarnings = FALSE)
+dir.create("outputs/tables/marginal_effect_grid", recursive = TRUE, showWarnings = FALSE)
+dir.create("outputs/figures/fdi_exposure", recursive = TRUE, showWarnings = FALSE)
+dir.create("outputs/figures/marginal_effects", recursive = TRUE, showWarnings = FALSE)
+dir.create(
+  "outputs/figures/marginal_effects_migration_across_fdi",
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+
+# -----------------------------
+# Master tables
+# -----------------------------
+
+write_csv(time_series_terms, "outputs/tables/time_series_terms_all.csv")
+write_csv(time_series_interactions, "outputs/tables/time_series_interactions_all.csv")
+write_csv(time_series_additive_terms, "outputs/tables/time_series_additive_terms_all.csv")
+
+write_csv(voter_group_counts, "outputs/tables/voter_group_counts.csv")
+write_csv(voter_merge_diagnostics, "outputs/tables/voter_merge_diagnostics.csv")
+write_csv(voter_logit_terms, "outputs/tables/voter_logit_terms_all.csv")
+write_csv(voter_logit_interactions, "outputs/tables/voter_logit_interactions_all.csv")
+write_csv(voter_logit_compare, "outputs/tables/voter_logit_compare.csv")
+write_csv(problem_models, "outputs/tables/voter_logit_problem_models.csv")
+
+write_csv(cross_section_terms, "outputs/tables/ac_share_terms_all.csv")
+write_csv(cross_section_interactions, "outputs/tables/ac_share_interactions_all.csv")
+write_csv(cross_section_additive_terms, "outputs/tables/ac_share_additive_terms_all.csv")
+
+if (nrow(marginal_effect_status) > 0) {
+  write_csv(marginal_effect_status, "outputs/tables/marginal_effect_status_all.csv")
+}
+
+if (nrow(marginal_effect_grid) > 0) {
+  write_csv(marginal_effect_grid, "outputs/tables/marginal_effect_grid_all.csv")
+}
+
+if (nrow(plot_specs) > 0) {
+  write_csv(plot_specs, "outputs/figures/marginal_effects/plot_index.csv")
+}
+
+# -----------------------------
+# Split tables by interpretable groups
+# -----------------------------
+
+time_series_outputs <- write_tables_by_group(
+  df = time_series_terms,
+  group_vars = c("dv", "migration_var"),
+  out_dir = "outputs/tables/time_series_change",
+  prefix = "time_series"
+)
+
+voter_logit_outputs <- write_tables_by_group(
+  df = voter_logit_terms,
+  group_vars = c("election_year", "ideology_group", "migration_var"),
+  out_dir = "outputs/tables/voter_logit_models",
+  prefix = "voter_logit"
+)
+
+cross_section_outputs <- write_tables_by_group(
+  df = cross_section_terms,
+  group_vars = c("dv", "migration_var"),
+  out_dir = "outputs/tables/ac_share_models",
+  prefix = "ac_share"
+)
+
+if (nrow(marginal_effect_status) > 0) {
+  marginal_effect_status_outputs <- write_tables_by_group(
+    df = marginal_effect_status,
+    group_vars = c("dv", "migration_var"),
+    out_dir = "outputs/tables/marginal_effect_status",
+    prefix = "me_status"
+  )
+}
+
+if (nrow(marginal_effect_grid) > 0) {
+  marginal_effect_grid_outputs <- write_tables_by_group(
+    df = marginal_effect_grid,
+    group_vars = c("dv", "migration_var"),
+    out_dir = "outputs/tables/marginal_effect_grid",
+    prefix = "me_grid"
+  )
+}
+
+# -----------------------------
+# FDI exposure distribution plot
+# -----------------------------
+
+fdi_exposure_long <- reg_data %>%
+  select(
+    State_no2011,
+    ac,
+    fdi_x1_total_n,
+    fdi_x2_total_n
+  ) %>%
+  pivot_longer(
+    cols = c(fdi_x1_total_n, fdi_x2_total_n),
+    names_to = "period",
+    values_to = "total_fdi_n"
+  ) %>%
+  mutate(
+    period = recode(
+      period,
+      fdi_x1_total_n = "2004-2009",
+      fdi_x2_total_n = "2009-2014"
+    ),
+    total_fdi_n = replace_na(total_fdi_n, 0),
+    total_fdi_bin = case_when(
+      total_fdi_n == 0 ~ "0",
+      total_fdi_n == 1 ~ "1",
+      total_fdi_n == 2 ~ "2",
+      total_fdi_n == 3 ~ "3",
+      total_fdi_n == 4 ~ "4",
+      total_fdi_n >= 5 ~ "5+",
+      TRUE ~ NA_character_
+    ),
+    total_fdi_bin = factor(
+      total_fdi_bin,
+      levels = c("0", "1", "2", "3", "4", "5+")
+    )
+  )
+
+write_csv(fdi_exposure_long, "outputs/tables/fdi_exposure_long.csv")
+
+fdi_exposure_plot <- ggplot(fdi_exposure_long, aes(x = total_fdi_bin)) +
+  geom_bar() +
+  facet_wrap(~ period) +
+  labs(
+    title = "Total FDI exposure across constituency-periods",
+    x = "Total FDI projects",
+    y = "Number of constituency-periods"
+  ) +
+  theme_minimal()
+
+ggsave(
+  filename = "outputs/figures/fdi_exposure/total_fdi_exposure_binned.png",
+  plot = fdi_exposure_plot,
+  width = 8,
+  height = 5,
+  dpi = 300
+)
+
+# -----------------------------
+# Save screened marginal-effect plots
+# -----------------------------
+
+if (length(screened_marginal_effect_plots) > 0) {
+  walk2(
+    screened_marginal_effect_plots,
+    plot_specs$plot_file,
+    ~ ggsave(
+      filename = .y,
+      plot = .x,
+      width = 8,
+      height = 6,
+      dpi = 300
+    )
+  )
+}
+
+# -----------------------------
+# Quick final checks
+# -----------------------------
+
+list(
+  time_series_models = nrow(time_series_grid),
+  voter_logit_models = nrow(voter_model_grid),
+  ac_share_models = nrow(ac_share_grid),
+  marginal_effect_models_screened = nrow(models_for_me),
+  marginal_effect_plots_saved = length(screened_marginal_effect_plots)
+)
+```
+
+```{r}
+# ============================================================
+# Focused AC-share regressions with employment control:
+# ideology-specific BJP/far-right vote share ~ agr * manufacturing FDI + employment
+# ============================================================
+
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(stringr)
+library(broom)
+library(sf)
+library(ggplot2)
+library(marginaleffects)
+
+# -----------------------------
+# 1. Prepare regression data
+# -----------------------------
+
+reg_data <- elec_cand_nes_ec_m_fdi %>%
+  { if (inherits(., "sf")) sf::st_drop_geometry(.) else . }
+
+# -----------------------------
+# 2. Define control
+# -----------------------------
+# Use the exact variable name in your data.
+# In your previous code this is usually "ec13_emp_all_ac_alloc".
+
+control_var <- "ec13_emp_all_ac_alloc"
+
+if (!control_var %in% names(reg_data)) {
+  stop(
+    "Control variable not found in reg_data. Check exact spelling. Similar variables:\n",
+    paste(names(reg_data) %>% stringr::str_subset("ec.*emp.*all"), collapse = "\n")
+  )
+}
+
+# -----------------------------
+# 3. Define the six models
+# -----------------------------
+
+ac_share_focused_specs <- tibble::tribble(
+  ~election_year, ~ideology_group, ~dv,                              ~migration_var, ~fdi_var,
+  2009,           "left",          "loc_bjp_left_vote_share_2009",    "agr_2009",     "fdi_x1_manufacturing_n",
+  2009,           "moderate",      "loc_bjp_mod_vote_share_2009",     "agr_2009",     "fdi_x1_manufacturing_n",
+  2009,           "right",         "loc_bjp_right_vote_share_2009",   "agr_2009",     "fdi_x1_manufacturing_n",
+  2014,           "left",          "loc_bjp_left_vote_share_2014",    "agr_2014",     "fdi_x2_manufacturing_n",
+  2014,           "moderate",      "loc_bjp_mod_vote_share_2014",     "agr_2014",     "fdi_x2_manufacturing_n",
+  2014,           "right",         "loc_bjp_right_vote_share_2014",   "agr_2014",     "fdi_x2_manufacturing_n"
+) %>%
+  mutate(control_var = control_var)
+
+# Check that all variables exist
+vars_needed <- ac_share_focused_specs %>%
+  select(dv, migration_var, fdi_var, control_var) %>%
+  unlist(use.names = FALSE) %>%
+  unique()
+
+missing_vars <- setdiff(vars_needed, names(reg_data))
+
+if (length(missing_vars) > 0) {
+  stop(
+    "These required variables are missing from reg_data:\n",
+    paste(missing_vars, collapse = "\n")
+  )
+}
+
+# -----------------------------
+# 4. Fit one model with control
+# -----------------------------
+# Uses temporary names y, migration, fdi, control so formulas are clean.
+
+fit_focused_ac_model <- function(data, election_year, ideology_group,
+                                 dv, migration_var, fdi_var, control_var) {
+  
+  model_data <- tibble(
+    y = data[[dv]],
+    migration = data[[migration_var]],
+    fdi = data[[fdi_var]],
+    control = data[[control_var]]
+  ) %>%
+    filter(
+      if_all(everything(), ~ !is.na(.x)),
+      if_all(where(is.numeric), ~ is.finite(.x))
+    )
+  
+  model <- lm(y ~ migration * fdi + control, data = model_data)
+  
+  list(
+    model = model,
+    model_data = model_data,
+    election_year = election_year,
+    ideology_group = ideology_group,
+    dv = dv,
+    migration_var = migration_var,
+    fdi_var = fdi_var,
+    control_var = control_var
+  )
+}
+
+focused_models <- ac_share_focused_specs %>%
+  mutate(
+    fit = pmap(
+      list(election_year, ideology_group, dv, migration_var, fdi_var, control_var),
+      ~ fit_focused_ac_model(
+        data = reg_data,
+        election_year = ..1,
+        ideology_group = ..2,
+        dv = ..3,
+        migration_var = ..4,
+        fdi_var = ..5,
+        control_var = ..6
+      )
+    )
+  )
+# -----------------------------
+# 4. Regression table: coefficients, p-values, R-squared
+# -----------------------------
+
+extract_focused_regression_table <- function(fit_obj) {
+  
+  term_lookup <- tibble(
+    term = c("(Intercept)", "migration", "fdi", "migration:fdi", "control"),
+    term_label = c(
+      "Intercept",
+      fit_obj$migration_var,
+      fit_obj$fdi_var,
+      paste0(fit_obj$migration_var, " × ", fit_obj$fdi_var),
+      fit_obj$control_var
+    ),
+    component = c(
+      "intercept",
+      "migration_main_effect",
+      "fdi_main_effect",
+      "interaction",
+      "employment_control"
+    )
+  )
+  
+  broom::tidy(fit_obj$model) %>%
+    left_join(term_lookup, by = "term") %>%
+    mutate(
+      election_year = fit_obj$election_year,
+      ideology_group = fit_obj$ideology_group,
+      dv = fit_obj$dv,
+      migration_var = fit_obj$migration_var,
+      fdi_var = fit_obj$fdi_var,
+      control_var = fit_obj$control_var,
+      n_obs = nobs(fit_obj$model),
+      r_squared = summary(fit_obj$model)$r.squared,
+      adj_r_squared = summary(fit_obj$model)$adj.r.squared,
+      stars = case_when(
+        p.value < 0.01 ~ "***",
+        p.value < 0.05 ~ "**",
+        p.value < 0.10 ~ "*",
+        TRUE ~ ""
+      )
+    ) %>%
+    transmute(
+      election_year,
+      ideology_group,
+      dv,
+      migration_var,
+      fdi_var,
+      control_var,
+      component,
+      term_label,
+      coefficient = estimate,
+      se = std.error,
+      t_stat = statistic,
+      p_value = p.value,
+      stars,
+      n_obs,
+      r_squared,
+      adj_r_squared
+    )
+}
+
+focused_regression_table <- focused_models %>%
+  mutate(table = map(fit, extract_focused_regression_table)) %>%
+  select(table) %>%
+  unnest(table) %>%
+  arrange(election_year, ideology_group, component)
+
+View(focused_regression_table)
+
+# A compact wide version, one row per model
+focused_regression_table_wide <- focused_regression_table %>%
+  filter(component %in% c(
+    "migration_main_effect",
+    "fdi_main_effect",
+    "interaction",
+    "employment_control"
+  )) %>%
+  select(
+    election_year,
+    ideology_group,
+    dv,
+    migration_var,
+    fdi_var,
+    control_var,
+    component,
+    coefficient,
+    p_value,
+    stars,
+    n_obs,
+    r_squared,
+    adj_r_squared
+  ) %>%
+  pivot_wider(
+    names_from = component,
+    values_from = c(coefficient, p_value, stars)
+  ) %>%
+  arrange(election_year, ideology_group)
+
+View(focused_regression_table_wide)
+
+# -----------------------------
+# 5. Marginal effect of migration across FDI
+# -----------------------------
+# This estimates:
+# d(vote share) / d(migration) = beta_migration + beta_interaction * FDI
+
+get_fdi_grid <- function(model_data, n_grid = 50) {
+  
+  fdi_values <- sort(unique(model_data$fdi))
+  
+  # If FDI is discrete with not too many values, use observed values.
+  # Otherwise use 5th-95th percentile grid.
+  if (length(fdi_values) <= 10) {
+    return(fdi_values)
+  }
+  
+  seq(
+    quantile(model_data$fdi, 0.05, na.rm = TRUE),
+    quantile(model_data$fdi, 0.95, na.rm = TRUE),
+    length.out = n_grid
+  )
+}
+
+extract_marginal_effects <- function(fit_obj) {
+  
+  fdi_grid <- get_fdi_grid(fit_obj$model_data)
+  
+  marginaleffects::slopes(
+    fit_obj$model,
+    variables = "migration",
+    newdata = marginaleffects::datagrid(
+      fdi = fdi_grid
+    )
+  ) %>%
+    as_tibble() %>%
+    mutate(
+      election_year = fit_obj$election_year,
+      ideology_group = fit_obj$ideology_group,
+      dv = fit_obj$dv,
+      migration_var = fit_obj$migration_var,
+      fdi_var = fit_obj$fdi_var,
+      fdi_value = fdi,
+      significant_positive = conf.low > 0,
+      significant_negative = conf.high < 0,
+      significant_any = significant_positive | significant_negative
+    ) %>%
+    select(
+      election_year,
+      ideology_group,
+      dv,
+      migration_var,
+      fdi_var,
+      fdi_value,
+      estimate,
+      std.error,
+      statistic,
+      p.value,
+      conf.low,
+      conf.high,
+      significant_positive,
+      significant_negative,
+      significant_any
+    )
+}
+
+focused_marginal_effect_grid <- focused_models %>%
+  mutate(me = map(fit, extract_marginal_effects)) %>%
+  select(me) %>%
+  unnest(me) %>%
+  arrange(election_year, ideology_group, fdi_value)
+
+View(focused_marginal_effect_grid)
+
+focused_marginal_effect_summary <- focused_marginal_effect_grid %>%
+  group_by(election_year, ideology_group, dv, migration_var, fdi_var) %>%
+  summarise(
+    min_fdi = min(fdi_value, na.rm = TRUE),
+    max_fdi = max(fdi_value, na.rm = TRUE),
+    min_marginal_effect = min(estimate, na.rm = TRUE),
+    max_marginal_effect = max(estimate, na.rm = TRUE),
+    mean_marginal_effect = mean(estimate, na.rm = TRUE),
+    n_grid = n(),
+    n_sig_positive = sum(significant_positive, na.rm = TRUE),
+    n_sig_negative = sum(significant_negative, na.rm = TRUE),
+    n_sig_any = sum(significant_any, na.rm = TRUE),
+    share_grid_sig_positive = mean(significant_positive, na.rm = TRUE),
+    share_grid_sig_negative = mean(significant_negative, na.rm = TRUE),
+    share_grid_sig_any = mean(significant_any, na.rm = TRUE),
+    status = case_when(
+      n_sig_positive > 0 & n_sig_negative == 0 ~ "Migration effect significantly positive somewhere",
+      n_sig_negative > 0 & n_sig_positive == 0 ~ "Migration effect significantly negative somewhere",
+      n_sig_positive > 0 & n_sig_negative > 0 ~ "Migration effect changes sign significantly",
+      TRUE ~ "Marginal migration effect not significant on FDI grid"
+    ),
+    .groups = "drop"
+  ) %>%
+  arrange(election_year, ideology_group)
+
+View(focused_marginal_effect_summary)
+
+# -----------------------------
+# 6. Marginal-effect plots
+# -----------------------------
+
+plot_migration_effect_across_fdi <- function(fit_obj) {
+  
+  fdi_grid <- get_fdi_grid(fit_obj$model_data)
+  
+  marginaleffects::plot_slopes(
+    fit_obj$model,
+    variables = "migration",
+    condition = list(fdi = fdi_grid)
+  ) +
+    labs(
+      title = "Marginal effect of migration across manufacturing FDI exposure",
+      subtitle = paste0(
+        "Outcome: ", fit_obj$dv,
+        "\nMigration: ", fit_obj$migration_var,
+        "\nFDI: ", fit_obj$fdi_var
+      ),
+      x = fit_obj$fdi_var,
+      y = paste0("Marginal effect of ", fit_obj$migration_var)
+    ) +
+    theme_minimal()
+}
+
+focused_marginal_effect_plots <- focused_models %>%
+  mutate(plot = map(fit, plot_migration_effect_across_fdi))
+
+# Print all plots in RStudio
+for (i in seq_len(nrow(focused_marginal_effect_plots))) {
+  print(focused_marginal_effect_plots$plot[[i]])
+}
+
+# Individual plots if you want to inspect them one at a time:
+plot_2009_left <- focused_marginal_effect_plots$plot[[1]]
+plot_2009_moderate <- focused_marginal_effect_plots$plot[[2]]
+plot_2009_right <- focused_marginal_effect_plots$plot[[3]]
+plot_2014_left <- focused_marginal_effect_plots$plot[[4]]
+plot_2014_moderate <- focused_marginal_effect_plots$plot[[5]]
+plot_2014_right <- focused_marginal_effect_plots$plot[[6]]
+
+plot_2009_moderate
+```
+
+```{r}
+# ============================================================
+# VISUALIZE FOCUSED AC-SHARE REGRESSION OUTPUTS WITH GGPLOT2
+# ============================================================
+
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+library(forcats)
+library(scales)
+
+# -----------------------------
+# 1. Helper labels
+# -----------------------------
+
+pretty_component <- function(x) {
+  dplyr::recode(
+    x,
+    "migration_main_effect" = "Migration",
+    "fdi_main_effect" = "Manufacturing FDI",
+    "interaction" = "Migration × Manufacturing FDI",
+    "intercept" = "Intercept",
+    .default = x
+  )
+}
+
+pretty_ideology <- function(x) {
+  stringr::str_to_title(x)
+}
+
+# -----------------------------
+# 2. Clean regression table for plotting
+# -----------------------------
+
+reg_plot_df <- focused_regression_table %>%
+  filter(component %in% c(
+    "migration_main_effect",
+    "fdi_main_effect",
+    "interaction"
+  )) %>%
+  mutate(
+    component_label = pretty_component(component),
+    ideology_label = pretty_ideology(ideology_group),
+    model_label = paste0(election_year, " | ", ideology_label),
+    ci_low = coefficient - 1.96 * se,
+    ci_high = coefficient + 1.96 * se,
+    sig_05 = p_value < 0.05,
+    sig_label = case_when(
+      p_value < 0.01 ~ "p < .01",
+      p_value < 0.05 ~ "p < .05",
+      p_value < 0.10 ~ "p < .10",
+      TRUE ~ "n.s."
+    )
+  )
+
+# -----------------------------
+# 3. Coefficient plot
+# -----------------------------
+
+coef_plot <- ggplot(
+  reg_plot_df,
+  aes(
+    x = coefficient,
+    y = fct_rev(model_label),
+    xmin = ci_low,
+    xmax = ci_high,
+    shape = sig_05
+  )
+) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_errorbarh(height = 0.2) +
+  geom_point(size = 2.5) +
+  facet_wrap(~ component_label, scales = "free_x") +
+  labs(
+    title = "AC ideology-share regressions",
+    subtitle = "Outcome: share of ideological group voting BJP/far-right",
+    x = "Coefficient estimate with 95% confidence interval",
+    y = NULL,
+    shape = "p < .05"
+  ) +
+  theme_minimal()
+
+coef_plot
+```
+
+```{r}
+library(modelsummary)
+library(dplyr)
+library(purrr)
+library(tibble)
+
+model_list <- focused_models %>%
+  mutate(
+    model_name = paste0(election_year, " ", stringr::str_to_title(ideology_group))
+  ) %>%
+  select(model_name, fit) %>%
+  mutate(model = map(fit, "model")) %>%
+  select(model_name, model) %>%
+  deframe()
+
+coef_map <- c(
+  "migration" = "Migration Growth",
+  "fdi" = "Manufacturing FDI projects",
+  "migration:fdi" = "Migration Growth × Manufacturing FDI",
+  "control" = "Employment, all workers"
+)
+
+gof_map <- tribble(
+  ~raw,        ~clean,        ~fmt,
+  "nobs",      "Observations", 0,
+  "r.squared", "R-squared",    3
+)
+
+focused_modelsummary_table <- modelsummary(
+  model_list,
+  coef_map = coef_map,
+  estimate = "{estimate}{stars}",
+  statistic = c("SE = {std.error}", "p = {p.value}"),
+  stars = c("*" = 0.10, "**" = 0.05, "***" = 0.01),
+  gof_map = gof_map,
+  output = "gt",
+  title = "AC ideology-share regressions: migration growth × manufacturing FDI, controlling for employment"
+)
+
+focused_modelsummary_table
+```
 
