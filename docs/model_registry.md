@@ -106,13 +106,30 @@ Zero is retained as a substantively meaningful exposure value.
 
 ### Baseline/current exposure windows
 
-Primary lagged-exposure framework:
+Use two nonoverlapping 60-month calendar windows aligned to the 2009 and 2014
+election cycles.
 
-- baseline exposure: 2004 election to 2009 election
-- current exposure: 2009 election to 2014 election
+Baseline exposure:
 
-Exact project-date boundaries must remain centralized in the FDI construction
-code rather than redefined separately by model scripts.
+- April 2004 through March 2009
+- code boundary: `project_month >= 2004-04-01`
+- code boundary: `project_month < 2009-04-01`
+
+Current exposure:
+
+- April 2009 through March 2014
+- code boundary: `project_month >= 2009-04-01`
+- code boundary: `project_month < 2014-04-01`
+
+Each interval contains exactly 60 months. April 2009 belongs to the current
+window and April 2014 is excluded.
+
+Because the FDI source identifies project month rather than an exact within-month
+date, these should be described as calendar windows aligned to the election
+cycles rather than as exact post-election intervals.
+
+These boundaries must remain centralized in the FDI construction code rather
+than being redefined separately by model scripts.
 
 ### Sector robustness
 
@@ -135,13 +152,20 @@ This is a robustness transformation, not the primary functional form.
 
 ### Early period
 
-April 2004 through December 2005.
+April 2004 through December 2005:
+
+- `project_month >= 2004-04-01`
+- `project_month < 2006-01-01`
 
 ### Late period
 
-July 2012 through March 2014.
+July 2012 through March 2014:
 
-Both windows contain 21 months.
+- `project_month >= 2012-07-01`
+- `project_month < 2014-04-01`
+
+Both windows contain exactly 21 months. Do not annualize the two windows merely
+for comparability, because their durations are identical.
 
 ### Treatment
 
@@ -577,9 +601,7 @@ The following items must be resolved before the canonical model scripts are
 declared final:
 
 1. Final individual-level voter control set.
-2. Exact date-boundary implementation for the election-window FDI variables,
-   verified against the paper wording.
-3. Final paper/appendix placement of the retained specification-curve families.
+2. Final paper/appendix placement of the retained specification-curve families.
 
 These unresolved items should be resolved explicitly rather than inherited from
 legacy scripts.
