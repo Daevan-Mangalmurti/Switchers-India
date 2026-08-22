@@ -183,16 +183,35 @@ outcome model.
 
 ### Sample
 
-2014 assembly constituencies with the variables required by the final
-specification.
+2014 assembly constituencies in which BJP fielded a candidate, with the variables
+required by the final specification.
+
+Require:
+
+`bjp_candidate_present == TRUE`
+
+This makes the estimand conditional on BJP electoral availability. Constituencies
+in which BJP did not field a candidate are not treated as zero-BJP-support
+constituencies, because BJP non-contestation may reflect alliance seat-sharing
+rather than voter rejection of an available BJP candidate.
 
 ### Outcome
 
-2014 BJP support among centrist NES respondents aggregated to the constituency
-level.
+`centrist_bjp_share_weighted_2014`
 
-The exact persisted variable name and weighting definition must be documented
-when the final model script is frozen.
+This is the survey-weighted mean of `voted_bjp` among 2014 NES respondents who:
+
+- are classified as Center
+- are assigned to the assembly constituency
+- have a valid reported vote
+
+The constituency enters the canonical regression only when
+`bjp_candidate_present == TRUE`.
+
+The canonical AC analysis dataset should also retain supporting audit quantities,
+including the number of centrist respondents, the number of centrist valid
+voters, the weighted centrist valid-voter total, and the corresponding
+unweighted BJP share.
 
 ### Primary exposure
 
@@ -248,12 +267,18 @@ primary control set.
 
 ### Inference
 
-UNRESOLVED BEFORE FINAL FREEZE:
+Primary standard errors are clustered by parliamentary constituency using
+`pc_cluster_id`.
 
-- exact primary AC-level clustering unit
+This clustering level reflects the shared Lok Sabha contest faced by assembly
+constituencies nested within the same parliamentary constituency.
 
-The final choice must be stated once in the canonical model script and used
-consistently in paper tables and marginal-effect calculations.
+Use the same PC-clustered covariance matrix for coefficient tables,
+confidence intervals, and marginal-effect calculations.
+
+State-clustered standard errors should be retained as an inference sensitivity
+analysis. A spatial covariance sensitivity may be added if feasible, but is not
+part of the primary specification.
 
 ## 7. Constituency-level alternative treatment model
 
@@ -275,7 +300,10 @@ It is not a first-difference outcome model.
 
 ### Outcome
 
-2014 official BJP constituency vote share.
+2014 official BJP constituency vote share, restricted to constituencies in which
+BJP fielded a candidate:
+
+`bjp_candidate_present == TRUE`
 
 ### Purpose
 
@@ -313,9 +341,19 @@ Robustness analysis, not the primary constituency outcome.
 
 ### Sample
 
-2014 NES respondents classified as centrists.
+2014 NES respondents classified as centrists who:
 
-Do not condition the primary sample on BJP candidate presence.
+- have a valid reported vote
+- are assigned to an assembly constituency
+- live in a constituency in which BJP fielded a candidate
+
+Require:
+
+`bjp_candidate_present == TRUE`
+
+The primary voter-level estimand is therefore conditional on BJP electoral
+availability. Constituencies in which BJP did not field a candidate are excluded
+rather than treating the inability to cast a BJP vote as voter rejection of BJP.
 
 ### Outcome
 
@@ -520,7 +558,7 @@ The final FDI build must validate:
 
 The following are not part of the current paper analysis:
 
-- candidate-supply/BJP-contestation branch
+- candidate-supply/BJP-contestation as a separate outcome or explanatory branch
 - pooled AC models as a primary design
 - first-difference political-outcome model
 - neighbor-only FDI exposure
@@ -528,18 +566,20 @@ The following are not part of the current paper analysis:
 
 IV attempts are documented separately for scientific provenance.
 
+BJP candidate presence remains an analytic-sample restriction for BJP-specific
+outcomes. The final outputs should include a descriptive sample audit showing
+the number and share of constituencies and respondents retained by this
+restriction and basic included-versus-excluded constituency characteristics.
+
 ## 18. Remaining decisions before final model freeze
 
 The following items must be resolved before the canonical model scripts are
 declared final:
 
-1. Exact persisted variable name and construction for the primary 2014
-   constituency centrist-BJP outcome.
-2. Exact primary AC-level clustering unit.
-3. Final individual-level voter control set.
-4. Exact date-boundary implementation for the election-window FDI variables,
+1. Final individual-level voter control set.
+2. Exact date-boundary implementation for the election-window FDI variables,
    verified against the paper wording.
-5. Final paper/appendix placement of the retained specification-curve families.
+3. Final paper/appendix placement of the retained specification-curve families.
 
 These unresolved items should be resolved explicitly rather than inherited from
 legacy scripts.
