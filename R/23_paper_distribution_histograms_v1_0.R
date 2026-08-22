@@ -3,11 +3,11 @@
 #
 # Descriptive constituency distributions for the paper:
 #   Figure A: 2001 Muslim population share
-#   Figure B: 2009-election-to-2014-election FDI projects per 100,000
+#   Figure B: Apr 2009-Mar 2014 FDI projects per 100,000
 #             (total, manufacturing, services)
 #   Figure C: change in FDI between an early window
 #             (Apr 2004-Dec 2005) and a late window
-#             (Aug 2012-Mar 2014), by total/manufacturing/services.
+#             (Jul 2012-Mar 2014), by total/manufacturing/services.
 #
 # FDI definitions match the project pipeline:
 #   - local exposure = own AC + touching ACs
@@ -15,9 +15,8 @@
 #   - manufacturing/services use standardized_sector from the
 #     project's FDI sector taxonomy.
 #
-# For Figure C, the primary plotted change is ANNUALIZED because the
-# early and late windows contain 21 and 20 months, respectively.
-# Literal raw-window differences are also saved in the plot-data CSV.
+# For Figure C, the primary plotted change is the literal difference
+# between two equal 21-month windows. No annualization is required.
 # ============================================================
 
 suppressPackageStartupMessages({
@@ -49,12 +48,12 @@ FDI_ALLOWED_STATUSES <- c("announced", "opened")
 WINDOW_0914_START <- as.Date("2009-04-01")
 WINDOW_0914_END   <- as.Date("2014-04-01")
 
-# Requested early/late comparison windows.
+# Canonical equal-length early/late comparison windows.
 # Left-closed/right-open means these are Apr 2004-Dec 2005 inclusive
-# and Aug 2012-Mar 2014 inclusive.
+# and Jul 2012-Mar 2014 inclusive.
 EARLY_START <- as.Date("2004-04-01")
 EARLY_END   <- as.Date("2006-01-01")
-LATE_START  <- as.Date("2012-08-01")
+LATE_START  <- as.Date("2012-07-01")
 LATE_END    <- as.Date("2014-04-01")
 
 months_between <- function(start_date, end_date) {
@@ -65,7 +64,7 @@ months_between <- function(start_date, end_date) {
 EARLY_MONTHS <- months_between(EARLY_START, EARLY_END)
 LATE_MONTHS  <- months_between(LATE_START, LATE_END)
 
-stopifnot(EARLY_MONTHS == 21L, LATE_MONTHS == 20L)
+stopifnot(EARLY_MONTHS == 21L, LATE_MONTHS == 21L)
 
 out_root <- file.path(
   paths$derived_dir,
@@ -210,26 +209,9 @@ plot_data <- ac_frame |>
   dplyr::mutate(
     muslim_share_2001_pct = 100 * muslim_share_2001_dist_proxy,
 
-    # Literal window-total changes in projects per 100,000.
-    change_total_pc100k_raw = total_pc100k_late - total_pc100k_early,
-    change_mfg_pc100k_raw = mfg_pc100k_late - mfg_pc100k_early,
-    change_services_pc100k_raw = services_pc100k_late - services_pc100k_early,
-
-    # Annualized window rates, preferred for comparing 21-month and 20-month windows.
-    total_pc100k_early_annualized = total_pc100k_early * 12 / EARLY_MONTHS,
-    mfg_pc100k_early_annualized = mfg_pc100k_early * 12 / EARLY_MONTHS,
-    services_pc100k_early_annualized = services_pc100k_early * 12 / EARLY_MONTHS,
-
-    total_pc100k_late_annualized = total_pc100k_late * 12 / LATE_MONTHS,
-    mfg_pc100k_late_annualized = mfg_pc100k_late * 12 / LATE_MONTHS,
-    services_pc100k_late_annualized = services_pc100k_late * 12 / LATE_MONTHS,
-
-    change_total_pc100k_annualized =
-      total_pc100k_late_annualized - total_pc100k_early_annualized,
-    change_mfg_pc100k_annualized =
-      mfg_pc100k_late_annualized - mfg_pc100k_early_annualized,
-    change_services_pc100k_annualized =
-      services_pc100k_late_annualized - services_pc100k_early_annualized
+    change_total_pc100k = total_pc100k_late - total_pc100k_early,
+    change_mfg_pc100k = mfg_pc100k_late - mfg_pc100k_early,
+    change_services_pc100k = services_pc100k_late - services_pc100k_early
   )
 
 readr::write_csv(
@@ -322,7 +304,7 @@ p_fdi_levels <- ggplot(
   labs(
     x = "FDI projects per 100,000 residents",
     y = "Number of constituencies",
-    title = "Distribution of Local FDI Exposure Between the 2009 and 2014 Elections",
+    title = "Distribution of Local FDI Exposure, April 2009-March 2014",
     subtitle = "Own constituency plus touching constituencies; announced and opened projects"
   ) +
   theme_classic(base_size = 12) +
@@ -351,27 +333,27 @@ ggsave(
 # ============================================================
 # 5. FIGURE C: EARLY-TO-LATE CHANGE IN FDI PER 100,000
 # ============================================================
-# Primary: change in ANNUALIZED project rates, because the requested
-# early and late windows contain 21 and 20 months, respectively.
+# Primary: literal late-window minus early-window project counts per 100,000.
+# Both windows contain exactly 21 months.
 
 fdi_change_long <- plot_data |>
   dplyr::select(
     ac_uid,
-    change_total_pc100k_annualized,
-    change_mfg_pc100k_annualized,
-    change_services_pc100k_annualized
+    change_total_pc100k,
+    change_mfg_pc100k,
+    change_services_pc100k
   ) |>
   tidyr::pivot_longer(
     cols = -ac_uid,
     names_to = "measure",
-    values_to = "change_pc100k_annualized"
+    values_to = "change_pc100k"
   ) |>
   dplyr::mutate(
     measure = dplyr::recode(
       measure,
-      change_total_pc100k_annualized = "Total FDI",
-      change_mfg_pc100k_annualized = "Manufacturing FDI",
-      change_services_pc100k_annualized = "Services FDI"
+      change_total_pc100k = "Total FDI",
+      change_mfg_pc100k = "Manufacturing FDI",
+      change_services_pc100k = "Services FDI"
     ),
     measure = factor(
       measure,
@@ -381,18 +363,18 @@ fdi_change_long <- plot_data |>
 
 p_fdi_change <- ggplot(
   fdi_change_long |>
-    dplyr::filter(!is.na(change_pc100k_annualized)),
-  aes(x = change_pc100k_annualized)
+    dplyr::filter(!is.na(change_pc100k)),
+  aes(x = change_pc100k)
 ) +
   geom_histogram(bins = 40) +
   geom_vline(xintercept = 0, linetype = "dashed", linewidth = 0.5) +
   facet_wrap(~measure, nrow = 1, scales = "free_x") +
   labs(
-    x = "Change in annualized FDI projects per 100,000 residents",
+    x = "Change in FDI projects per 100,000 residents",
     y = "Number of constituencies",
     title = "Change in Local FDI Exposure Across Constituencies",
     subtitle = paste0(
-      "Late window: Aug 2012-Mar 2014 minus early window: Apr 2004-Dec 2005; ",
+      "Late window: Jul 2012-Mar 2014 minus early window: Apr 2004-Dec 2005; ",
       "own constituency plus touching constituencies"
     )
   ) +
