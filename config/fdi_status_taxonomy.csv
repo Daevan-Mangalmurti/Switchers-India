@@ -1,0 +1,3 @@
+source_status,standardized_status,included_in_all,included_in_announced,included_in_opened,classification_note
+Announced,announced,True,True,False,Source status retained; Opened is not relabeled completed
+Opened,opened,True,False,True,Source status retained; Opened is not relabeled completed

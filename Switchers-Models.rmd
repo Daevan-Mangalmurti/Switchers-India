@@ -1,0 +1,567 @@
+---
+title: "Switchers-Models"
+output: html_document
+date: "2026-08-06"
+---
+
+## R Markdown
+Puzzle: Why is there a significant increase in the share of centrists casting votes for the far right, especially the BJP, from 2009 to 2014?
+```{r, echo = FALSE}
+library(tidyverse)
+library(scales)
+
+nes_voters <-
+  nes$respondents |>
+  filter(
+    year %in% c(2009, 2014),
+    vote_valid,
+    !is.na(reported_vote_party_label)
+  ) |>
+  mutate(
+    year = factor(year, levels = c(2009, 2014)),
+    voter_ideology = factor(
+      as.character(voter_ideology),
+      levels = c("Left", "Center", "Right", "Mixed")
+    ),
+    party = case_when(
+      voted_bjp == 1 ~ "BJP",
+      voted_congress == 1 ~ "Congress",
+      voted_shs == 1 ~ "Shiv Sena",
+      voted_mns == 1 ~ "MNS",
+      TRUE ~ str_squish(reported_vote_party_label)
+    )
+  )
+
+# Identify the top 10 parties separately within each year.
+make_party_shares <- function(data, top_n = 10) {
+
+  party_counts <-
+    data |>
+    summarise(
+      weighted_n = sum(
+        survey_weight_norm_year,
+        na.rm = TRUE
+      ),
+      .by = c(year, party)
+    ) |>
+    group_by(year) |>
+    arrange(desc(weighted_n), party, .by_group = TRUE) |>
+    mutate(
+      party_rank = row_number(),
+      party_plot = if_else(
+        party_rank <= top_n,
+        party,
+        "Other"
+      )
+    ) |>
+    ungroup()
+
+  party_counts |>
+    summarise(
+      weighted_n = sum(weighted_n),
+      .by = c(year, party_plot)
+    ) |>
+    group_by(year) |>
+    mutate(
+      share = weighted_n / sum(weighted_n)
+    ) |>
+    ungroup()
+}
+
+
+plot_party_shares <- function(data, title) {
+
+  plot_data <-
+    make_party_shares(data) |>
+    mutate(
+      # A year-specific identifier permits different party ordering
+      # in the two facets.
+      party_year = paste(
+        party_plot,
+        year,
+        sep = "___"
+      ),
+      party_year = forcats::fct_reorder(
+        party_year,
+        share
+      )
+    )
+
+  ggplot(
+    plot_data,
+    aes(
+      x = share,
+      y = party_year,
+      fill = year
+    )
+  ) +
+    geom_col(
+      width = 0.7,
+      show.legend = FALSE
+    ) +
+    geom_text(
+      aes(
+        label = percent(
+          share,
+          accuracy = 0.1
+        )
+      ),
+      hjust = -0.1,
+      size = 3
+    ) +
+    facet_wrap(
+      ~ year,
+      scales = "free_y"
+    ) +
+    scale_y_discrete(
+      labels = function(x) {
+        sub("___.*$", "", x)
+      }
+    ) +
+    scale_x_continuous(
+      labels = label_percent(),
+      expand = expansion(mult = c(0, 0.18))
+    ) +
+    coord_cartesian(clip = "off") +
+    labs(
+      title = title,
+      subtitle = paste(
+        "Top 10 parties separately in each year;",
+        "remaining parties grouped as Other"
+      ),
+      x = "Survey-weighted vote share",
+      y = NULL
+    ) +
+    theme_minimal() +
+    theme(
+      panel.grid.major.y = element_blank(),
+      panel.grid.minor = element_blank(),
+      plot.title.position = "plot",
+      plot.margin = margin(10, 35, 10, 10)
+    )
+}
+
+# Vote share nationally of each party in 2009 versus 2014
+plot_party_shares(
+  nes_voters,
+  "Reported party vote among NES respondents"
+)
+
+# Share of voters in each ideological bucket voting for the far right in 2009 versus 2014
+fr_by_ideology <-
+  nes$respondents |>
+  filter(
+    year %in% c(2009, 2014),
+    !is.na(voter_ideology),
+    !is.na(voted_fr)
+  ) |>
+  summarise(
+    share = weighted.mean(
+      voted_fr,
+      survey_weight_norm_year,
+      na.rm = TRUE
+    ),
+    .by = c(year, voter_ideology)
+  ) |>
+  mutate(
+    year = factor(year),
+    voter_ideology = factor(
+      voter_ideology,
+      levels = c("Left", "Center", "Right", "Mixed")
+    )
+  )
+
+ggplot(
+  fr_by_ideology,
+  aes(voter_ideology, share, fill = year)
+) +
+  geom_col(position = "dodge") +
+  geom_text(
+    aes(label = percent(share, accuracy = 0.1)),
+    position = position_dodge(width = 0.9),
+    vjust = -0.3,
+    size = 3
+  ) +
+  scale_y_continuous(
+    labels = label_percent(),
+    expand = expansion(mult = c(0, 0.12))
+  ) +
+  labs(
+    title = "Far-right voting by ideological bucket",
+    x = NULL,
+    y = "Survey-weighted share voting far right",
+    fill = NULL
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+# Share of centrists who voted for the BJP and other parties in 2009 versus 2014
+plot_party_shares(
+  filter(nes_voters, voter_ideology == "Center"),
+  "Party choices of centrist voters"
+)
+
+# What happened to the left? Share of leftists who voted for the BJP and other parties in 2009 versus 2014
+plot_party_shares(
+  filter(nes_voters, voter_ideology == "Left"),
+  "Party choices of left-wing voters"
+)
+
+# What happened to the left? Share of the shift in leftists to the BJP that is accounted for by West Bengal
+left_bjp_decomposition <-
+  nes$respondents |>
+  filter(
+    year %in% c(2009, 2014),
+    voter_ideology == "Left",
+    !is.na(voted_bjp)
+  ) |>
+  mutate(
+    region = if_else(
+      state_no == 19L,
+      "West Bengal",
+      "All other states"
+    )
+  ) |>
+  group_by(year) |>
+  mutate(
+    national_left_weight =
+      sum(survey_weight_norm_year, na.rm = TRUE)
+  ) |>
+  ungroup() |>
+  summarise(
+    contribution_to_national_share =
+      sum(
+        survey_weight_norm_year * voted_bjp,
+        na.rm = TRUE
+      ) / first(national_left_weight),
+    .by = c(year, region)
+  ) |>
+  complete(
+    year = c(2009L, 2014L),
+    region = c("West Bengal", "All other states"),
+    fill = list(contribution_to_national_share = 0)
+  ) |>
+  pivot_wider(
+    names_from = year,
+    values_from = contribution_to_national_share,
+    names_prefix = "share_"
+  ) |>
+  mutate(
+    contribution_pp =
+      100 * (share_2014 - share_2009),
+    national_change_pp = sum(contribution_pp),
+    share_of_net_change =
+      contribution_pp / national_change_pp
+  )
+
+ggplot(
+  left_bjp_decomposition,
+  aes(contribution_pp, region)
+) +
+  geom_col() +
+  geom_vline(xintercept = 0) +
+  geom_text(
+    aes(
+      label = paste0(
+        number(contribution_pp, accuracy = 0.1),
+        " pp\n",
+        percent(share_of_net_change, accuracy = 1),
+        " of net change"
+      ),
+      hjust = if_else(contribution_pp >= 0, -0.1, 1.1)
+    ),
+    size = 3.4
+  ) +
+  scale_x_continuous(
+    expand = expansion(mult = c(0.25, 0.25))
+  ) +
+  labs(
+    title = "Who accounted for the left-to-BJP shift?",
+    subtitle = paste0(
+      "National change in BJP support among leftists: ",
+      number(
+        unique(left_bjp_decomposition$national_change_pp),
+        accuracy = 0.1
+      ),
+      " percentage points"
+    ),
+    x = "Contribution to national change",
+    y = NULL
+  ) +
+  theme_minimal() +
+  theme(panel.grid.major.y = element_blank())
+
+# What happened to the right? Share of rightists who voted for the BJP and other parties in 2009 versus 2014
+plot_party_shares(
+  filter(nes_voters, voter_ideology == "Right"),
+  "Party choices of right-wing voters"
+)
+```
+
+Diagnostic: How much FDI was there from 2004-2009 versus 2009-2014? Were the places that got more FDI in either period the places with more population growth, migration, or Muslims?
+```{r}
+
+```
+
+H1: Contingent on an assembly constituency's pre-treatment Muslim population share/log Muslim population and the share of voters who are self-identified centrists, increasing per capita exposure to FDI/change in per capita exposure to FDI is associated with a larger share of the vote going to the far right.
+```{r}
+# Pooled cross-section
+modelsummary(feols(bjp_vote_share ~ log1p_fdi_total_local_all_pc100k * muslim_share_2001_dist_proxy + proxy_ac_pop + ed_sec_share + log_secc_cons_pc + sc_pop_share + st_pop_share | state_no + year, data = ac_year), stars = TRUE)
+
+modelsummary(feols(bjp_vote_share ~ log1p_fdi_total_own_all_pc100k * muslim_share_2001_dist_proxy + proxy_ac_pop + ed_sec_share + log_secc_cons_pc + sc_pop_share + st_pop_share | state_no + year, data = ac_year), stars = TRUE)
+
+# Triple interaction
+modelsummary(feols(bjp_vote_share ~ log1p_fdi_total_local_all_pc100k * muslim_share_2001_dist_proxy * nes_share_center_all_respondents + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no + year, data = ac_year), stars = TRUE)
+
+modelsummary(feols(bjp_vote_share ~ log1p_fdi_total_own_all_pc100k * muslim_share_2001_dist_proxy * nes_share_center_all_respondents + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no + year, data = ac_year), stars = TRUE)
+
+# Lagged-outcome
+
+# Lagged-outcome triple interaction
+```
+
+C-H1A: Contingent on an assembly constituency's pre-treatment Bihari and Bengali migrant population share/log Bihari and Bengali migrant population and the share of voters who are self-identified centrists, increasing per capita exposure to FDI/change in per capita exposure to FDI is associated with a larger share of the vote going to the far right.
+```{r}
+# Pooled cross-section
+modelsummary(feols(bjp_vote_share ~ log1p_fdi_total_local_all_pc100k * target_bengali_bhojpuri_share_2001_dist_proxy + proxy_ac_pop + ed_sec_share + log_secc_cons_pc + sc_pop_share + st_pop_share | state_no + year, data = ac_year), stars = TRUE)
+
+modelsummary(feols(bjp_vote_share ~ log1p_fdi_total_own_all_pc100k * target_bengali_bhojpuri_share_2001_dist_proxy + proxy_ac_pop + ed_sec_share + log_secc_cons_pc + sc_pop_share + st_pop_share | state_no + year, data = ac_year), stars = TRUE)
+
+# Triple interaction
+modelsummary(feols(bjp_vote_share ~ log1p_fdi_total_local_all_pc100k * target_bengali_bhojpuri_share_2001_dist_proxy * nes_share_center_all_respondents + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no + year, data = ac_year), stars = TRUE)
+
+modelsummary(feols(bjp_vote_share ~ log1p_fdi_total_own_all_pc100k * target_bengali_bhojpuri_share_2001_dist_proxy * nes_share_center_all_respondents + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no + year, data = ac_year), stars = TRUE)
+
+# Lagged-outcome
+
+# Lagged-outcome triple interaction
+```
+
+C-H1B: Contingent on an assembly constituency's pre-treatment SC population share/log SC population and the share of voters who are self-identified centrists, increasing per capita exposure to FDI/change in per capita exposure to FDI is associated with a larger share of the vote going to the far right.
+```{r}
+# Pooled cross-section
+modelsummary(feols(bjp_vote_share ~ log1p_fdi_total_local_all_pc100k * sc_higher_secondary_plus_share_age7plus_2001_dist_proxy + proxy_ac_pop + ed_sec_share + log_secc_cons_pc + sc_pop_share + st_pop_share | state_no + year, data = ac_year), stars = TRUE)
+
+modelsummary(feols(bjp_vote_share ~ log1p_fdi_total_own_all_pc100k * sc_higher_secondary_plus_share_age7plus_2001_dist_proxy + proxy_ac_pop + ed_sec_share + log_secc_cons_pc + sc_pop_share + st_pop_share | state_no + year, data = ac_year), stars = TRUE)
+
+# Triple interaction
+modelsummary(feols(bjp_vote_share ~ log1p_fdi_total_local_all_pc100k * sc_higher_secondary_plus_share_age7plus_2001_dist_proxy * nes_share_center_all_respondents + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no + year, data = ac_year), stars = TRUE)
+
+modelsummary(feols(bjp_vote_share ~ log1p_fdi_total_own_all_pc100k * sc_higher_secondary_plus_share_age7plus_2001_dist_proxy * nes_share_center_all_respondents + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no + year, data = ac_year), stars = TRUE)
+
+# Lagged-outcome
+
+# Lagged-outcome triple interaction
+```
+
+C-H1C: Contingent on the (percentage point) change in an assembly constituency's Muslim population share/log Muslim population and the share of voters who are self-identified centrists, increasing per capita exposure to FDI/change in per capita exposure to FDI is associated with a larger share of the vote going to the far right.
+```{r}
+# Pooled cross-section
+modelsummary(feols(bjp_vote_share ~ log1p_fdi_total_local_all_pc100k * d_muslim_share_2001_2011_pp + proxy_ac_pop + ed_sec_share + log_secc_cons_pc + sc_pop_share + st_pop_share | state_no + year, data = ac_year), stars = TRUE)
+
+modelsummary(feols(bjp_vote_share ~ log1p_fdi_total_own_all_pc100k * d_muslim_share_2001_2011_pp + proxy_ac_pop + ed_sec_share + log_secc_cons_pc + sc_pop_share + st_pop_share | state_no + year, data = ac_year), stars = TRUE)
+
+# Triple interaction
+modelsummary(feols(bjp_vote_share ~ log1p_fdi_total_local_all_pc100k * d_muslim_share_2001_2011_pp * nes_share_center_all_respondents + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no + year, data = ac_year), stars = TRUE)
+
+modelsummary(feols(bjp_vote_share ~ log1p_fdi_total_own_all_pc100k * d_muslim_share_2001_2011_pp * nes_share_center_all_respondents + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no + year, data = ac_year), stars = TRUE)
+
+# Lagged-outcome
+
+# Lagged-outcome triple interaction
+```
+
+C-H1D: Contingent on the (percentage point) change in an assembly constituency's Bihari and Bengali population share/log Bihari and Bengali population and the share of voters who are self-identified centrists, increasing per capita exposure to FDI/change in per capita exposure to FDI is associated with a larger share of the vote going to the far right.
+```{r}
+# Pooled cross-section
+modelsummary(feols(bjp_vote_share ~ log1p_fdi_total_local_all_pc100k * d_target_bengali_bhojpuri_share_2001_2011_pp + proxy_ac_pop + ed_sec_share + log_secc_cons_pc + sc_pop_share + st_pop_share | state_no + year, data = ac_year), stars = TRUE)
+
+modelsummary(feols(bjp_vote_share ~ log1p_fdi_total_own_all_pc100k * d_target_bengali_bhojpuri_share_2001_2011_pp + proxy_ac_pop + ed_sec_share + log_secc_cons_pc + sc_pop_share + st_pop_share | state_no + year, data = ac_year), stars = TRUE)
+
+# Triple interaction
+modelsummary(feols(bjp_vote_share ~ log1p_fdi_total_local_all_pc100k * d_target_bengali_bhojpuri_share_2001_2011_pp * nes_share_center_all_respondents + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no + year, data = ac_year), stars = TRUE)
+
+modelsummary(feols(bjp_vote_share ~ log1p_fdi_total_own_all_pc100k * d_target_bengali_bhojpuri_share_2001_2011_pp * nes_share_center_all_respondents + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no + year, data = ac_year), stars = TRUE)
+
+# Lagged-outcome
+
+# Lagged-outcome triple interaction
+```
+
+C-H1E: Contingent on the (percentage point) change in an assembly constituency's SC population share/log SC population and the share of voters who are self-identified centrists, increasing per capita exposure to FDI/change in per capita exposure to FDI is associated with a larger share of the vote going to the far right.
+```{r}
+# Pooled cross-section
+modelsummary(feols(bjp_vote_share ~ log1p_fdi_total_local_all_pc100k * d_sc_higher_secondary_plus_share_age7plus_2001_2011_pp + proxy_ac_pop + ed_sec_share + log_secc_cons_pc + sc_pop_share + st_pop_share | state_no + year, data = ac_year), stars = TRUE)
+
+modelsummary(feols(bjp_vote_share ~ log1p_fdi_total_own_all_pc100k * d_sc_higher_secondary_plus_share_age7plus_2001_2011_pp + proxy_ac_pop + ed_sec_share + log_secc_cons_pc + sc_pop_share + st_pop_share | state_no + year, data = ac_year), stars = TRUE)
+
+# Triple interaction
+modelsummary(feols(bjp_vote_share ~ log1p_fdi_total_local_all_pc100k * d_sc_higher_secondary_plus_share_age7plus_2001_2011_pp * nes_share_center_all_respondents + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no + year, data = ac_year), stars = TRUE)
+
+modelsummary(feols(bjp_vote_share ~ log1p_fdi_total_own_all_pc100k * d_sc_higher_secondary_plus_share_age7plus_2001_2011_pp * nes_share_center_all_respondents + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no + year, data = ac_year), stars = TRUE)
+
+# Lagged-outcome
+
+# Lagged-outcome triple interaction
+```
+
+H2: Contingent on an assembly constituency's pre-treatment Muslim population share/log Muslim population and a voter's ideological affinity, increasing per capita exposure to FDI is associated with a greater propensity to vote for the far right.
+```{r}
+# Logit
+modelsummary(feglm(voted_fr ~ log1p_fdi_total_local_all_pc100k * muslim_share_2001_dist_proxy * voter_ideology + education_harmonized + household_income_monthly + caste_group + religion_group | state_no + year, data = nes_respondent_analysis, family = binomial), stars = TRUE)
+
+modelsummary(feglm(voted_fr ~ log1p_fdi_total_own_all_pc100k * muslim_share_2001_dist_proxy * voter_ideology + education_harmonized + household_income_monthly + caste_group + religion_group | state_no + year, data = nes_respondent_analysis, family = binomial), stars = TRUE)
+
+# MLM triple interaction
+```
+
+C-H2A: Contingent on an assembly constituency's pre-treatment Bihari and Bengali migrant population share/log Bihari and Bengali migrant population and a voter's ideological affinity, increasing per capita exposure to FDI is associated with a greater propensity to vote for the far right.
+```{r}
+# Logit
+modelsummary(feglm(voted_fr ~ log1p_fdi_total_local_all_pc100k * target_bengali_bhojpuri_share_2001_dist_proxy * voter_ideology + education_harmonized + household_income_monthly + caste_group + religion_group | state_no + year, data = nes_respondent_analysis, family = binomial), stars = TRUE)
+
+modelsummary(feglm(voted_fr ~ log1p_fdi_total_own_all_pc100k * target_bengali_bhojpuri_share_2001_dist_proxy * voter_ideology + education_harmonized + household_income_monthly + caste_group + religion_group | state_no + year, data = nes_respondent_analysis, family = binomial), stars = TRUE)
+
+# MLM triple interaction
+```
+
+C-H2B: Contingent on an assembly constituency's pre-treatment SC population share/log SC population and a voter's ideological affinity, increasing per capita exposure to FDI is associated with a greater propensity to vote for the far right.
+```{r}
+# Logit
+modelsummary(feglm(voted_fr ~ log1p_fdi_total_local_all_pc100k * sc_higher_secondary_plus_share_age7plus_2001_dist_proxy * voter_ideology + education_harmonized + household_income_monthly + caste_group + religion_group | state_no + year, data = nes_respondent_analysis, family = binomial), stars = TRUE)
+
+modelsummary(feglm(voted_fr ~ log1p_fdi_total_own_all_pc100k * sc_higher_secondary_plus_share_age7plus_2001_dist_proxy * voter_ideology + education_harmonized + household_income_monthly + caste_group + religion_group | state_no + year, data = nes_respondent_analysis, family = binomial), stars = TRUE)
+
+# MLM triple interaction
+```
+
+C-H2C: Contingent on the (percentage point) change in an assembly constituency's Muslim population share/log Muslim population and a voter's ideological affinity, increasing per capita exposure to FDI is associated with a greater propensity to vote for the far right.
+```{r}
+modelsummary(feglm(voted_fr ~ log1p_fdi_total_local_all_pc100k * d_muslim_share_2001_2011_pp * voter_ideology + education_harmonized + household_income_monthly + caste_group + religion_group | state_no + year, data = nes_respondent_analysis, family = binomial), stars = TRUE)
+
+modelsummary(feglm(voted_fr ~ log1p_fdi_total_own_all_pc100k * d_muslim_share_2001_2011_pp * voter_ideology + education_harmonized + household_income_monthly + caste_group + religion_group | state_no + year, data = nes_respondent_analysis, family = binomial), stars = TRUE)
+
+# MLM triple interaction
+```
+
+C-H2D: Contingent on the (percentage point) change in an assembly constituency's Bihari and Bengali population share/log Bihari and Bengali population and a voter's ideological affinity, increasing per capita exposure to FDI is associated with a greater propensity to vote for the far right.
+```{r}
+# Logit
+modelsummary(feglm(voted_fr ~ log1p_fdi_total_local_all_pc100k * d_target_bengali_bhojpuri_share_2001_2011_pp * voter_ideology + education_harmonized + household_income_monthly + caste_group + religion_group | state_no + year, data = nes_respondent_analysis, family = binomial), stars = TRUE)
+
+modelsummary(feglm(voted_fr ~ log1p_fdi_total_own_all_pc100k * d_target_bengali_bhojpuri_share_2001_2011_pp * voter_ideology + education_harmonized + household_income_monthly + caste_group + religion_group | state_no + year, data = nes_respondent_analysis, family = binomial), stars = TRUE)
+
+# MLM triple interaction
+```
+
+C-H2E: Contingent on the (percentage point) change in an assembly constituency's SC population share/log SC population and a voter's ideological affinity, increasing per capita exposure to FDI is associated with a greater propensity to vote for the far right.
+```{r}
+# Logit
+modelsummary(feglm(voted_fr ~ log1p_fdi_total_local_all_pc100k * d_sc_higher_secondary_plus_share_age7plus_2001_2011_pp * voter_ideology + education_harmonized + household_income_monthly + caste_group + religion_group | state_no + year, data = nes_respondent_analysis, family = binomial), stars = TRUE)
+
+modelsummary(feglm(voted_fr ~ log1p_fdi_total_own_all_pc100k * d_sc_higher_secondary_plus_share_age7plus_2001_2011_pp * voter_ideology + education_harmonized + household_income_monthly + caste_group + religion_group | state_no + year, data = nes_respondent_analysis, family = binomial), stars = TRUE)
+
+# MLM triple interaction
+```
+
+H3: Contingent on an assembly constituency's pre-treatment Muslim population share/log Muslim population and the share of voters who are self-identified centrists, increasing per capita exposure to FDI is associated with a larger change in the share of the vote going to the far right.
+```{r}
+# 2014 cross-section
+modelsummary(feols(d_fr_party_vote_share_2009_2014_pp ~ log1p_fdi_total_local_all_pc100k_2014 * muslim_share_2001_dist_proxy + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no, data = ac_change), stars = TRUE)
+
+modelsummary(feols(d_fr_party_vote_share_2009_2014_pp ~ log1p_fdi_total_own_all_pc100k_2014 * muslim_share_2001_dist_proxy + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no, data = ac_change), stars = TRUE)
+
+# 2014 triple interaction
+modelsummary(feols(d_fr_party_vote_share_2009_2014_pp ~ log1p_fdi_total_own_all_pc100k_2014 * muslim_share_2001_dist_proxy * nes_share_center_all_respondents_2014 + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no, data = ac_change), stars = TRUE)
+
+modelsummary(feols(d_fr_party_vote_share_2009_2014_pp ~ log1p_fdi_total_own_all_pc100k_2014 * muslim_share_2001_dist_proxy * nes_share_center_all_respondents_2014 + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no, data = ac_change), stars = TRUE)
+
+# Lagged-outcome
+
+# Lagged-outcome triple interaction
+```
+
+C-H3A: Contingent on an assembly constituency's pre-treatment Bihari and Bengali migrant population share/log Bihari and Bengali migrant population and the share of voters who are self-identified centrists, increasing per capita exposure to FDI is associated with a larger change in the share of the vote going to the far right.
+```{r}
+# 2014 cross-section
+modelsummary(feols(d_fr_party_vote_share_2009_2014_pp ~ log1p_fdi_total_local_all_pc100k_2014 * target_bengali_bhojpuri_share_2001_dist_proxy + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no, data = ac_change), stars = TRUE)
+
+modelsummary(feols(d_fr_party_vote_share_2009_2014_pp ~ log1p_fdi_total_own_all_pc100k_2014 * target_bengali_bhojpuri_share_2001_dist_proxy + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no, data = ac_change), stars = TRUE)
+
+# 2014 triple interaction
+modelsummary(feols(d_fr_party_vote_share_2009_2014_pp ~ log1p_fdi_total_own_all_pc100k_2014 * target_bengali_bhojpuri_share_2001_dist_proxy * nes_share_center_all_respondents_2014 + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no, data = ac_change), stars = TRUE)
+
+modelsummary(feols(d_fr_party_vote_share_2009_2014_pp ~ log1p_fdi_total_own_all_pc100k_2014 * target_bengali_bhojpuri_share_2001_dist_proxy * nes_share_center_all_respondents_2014 + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no, data = ac_change), stars = TRUE)
+
+# Lagged-outcome
+
+# Lagged-outcome triple interaction
+```
+
+C-H3B: Contingent on an assembly constituency's pre-treatment SC population share/log SC population and the share of voters who are self-identified centrists, increasing per capita exposure to FDI/change in per capita exposure to FDI is associated with a larger change in the share of the vote going to the far right.
+```{r}
+# 2014 cross-section
+modelsummary(feols(d_fr_party_vote_share_2009_2014_pp ~ log1p_fdi_total_local_all_pc100k_2014 * sc_higher_secondary_plus_share_age7plus_2001_dist_proxy + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no, data = ac_change), stars = TRUE)
+
+modelsummary(feols(d_fr_party_vote_share_2009_2014_pp ~ log1p_fdi_total_own_all_pc100k_2014 * sc_higher_secondary_plus_share_age7plus_2001_dist_proxy + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no, data = ac_change), stars = TRUE)
+
+# 2014 triple interaction
+modelsummary(feols(d_fr_party_vote_share_2009_2014_pp ~ log1p_fdi_total_own_all_pc100k_2014 * sc_higher_secondary_plus_share_age7plus_2001_dist_proxy * nes_share_center_all_respondents_2014 + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no, data = ac_change), stars = TRUE)
+
+modelsummary(feols(d_fr_party_vote_share_2009_2014_pp ~ log1p_fdi_total_own_all_pc100k_2014 * sc_higher_secondary_plus_share_age7plus_2001_dist_proxy * nes_share_center_all_respondents_2014 + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no, data = ac_change), stars = TRUE)
+
+# Lagged-outcome
+
+# Lagged-outcome triple interaction
+```
+
+C-H3C: Contingent on the (percentage point) change in an assembly constituency's Muslim population share/log Muslim population and the share of voters who are self-identified centrists, increasing per capita exposure to FDI/change in per capita exposure to FDI is associated with a larger change in the share of the vote going to the far right.
+```{r}
+# 2014 cross-section
+modelsummary(feols(d_fr_party_vote_share_2009_2014_pp ~ log1p_fdi_total_local_all_pc100k_2014 * d_muslim_share_2001_2011_pp + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no, data = ac_change), stars = TRUE)
+
+modelsummary(feols(d_fr_party_vote_share_2009_2014_pp ~ log1p_fdi_total_own_all_pc100k_2014 * d_muslim_share_2001_2011_pp + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no, data = ac_change), stars = TRUE)
+
+# 2014 triple interaction
+modelsummary(feols(d_fr_party_vote_share_2009_2014_pp ~ log1p_fdi_total_own_all_pc100k_2014 * d_muslim_share_2001_2011_pp * nes_share_center_all_respondents_2014 + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no, data = ac_change), stars = TRUE)
+
+modelsummary(feols(d_fr_party_vote_share_2009_2014_pp ~ log1p_fdi_total_own_all_pc100k_2014 * d_muslim_share_2001_2011_pp * nes_share_center_all_respondents_2014 + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no, data = ac_change), stars = TRUE)
+
+# Lagged-outcome
+
+# Lagged-outcome triple interaction
+```
+
+C-H3D: Contingent on the (percentage point) change in an assembly constituency's Bihari and Bengali population share/log Bihari and Bengali population and the share of voters who are self-identified centrists, increasing per capita exposure to FDI/change in per capita exposure to FDI is associated with a larger change in the share of the vote going to the far right.
+```{r}
+# 2014 cross-section
+modelsummary(feols(d_fr_party_vote_share_2009_2014_pp ~ log1p_fdi_total_local_all_pc100k_2014 * d_target_bengali_bhojpuri_share_2001_2011_pp + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no, data = ac_change), stars = TRUE)
+
+modelsummary(feols(d_fr_party_vote_share_2009_2014_pp ~ log1p_fdi_total_own_all_pc100k_2014 * d_target_bengali_bhojpuri_share_2001_2011_pp + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no, data = ac_change), stars = TRUE)
+
+# 2014 triple interaction
+modelsummary(feols(d_fr_party_vote_share_2009_2014_pp ~ log1p_fdi_total_own_all_pc100k_2014 * d_target_bengali_bhojpuri_share_2001_2011_pp * nes_share_center_all_respondents_2014 + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no, data = ac_change), stars = TRUE)
+
+modelsummary(feols(d_fr_party_vote_share_2009_2014_pp ~ log1p_fdi_total_own_all_pc100k_2014 * d_target_bengali_bhojpuri_share_2001_2011_pp * nes_share_center_all_respondents_2014 + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no, data = ac_change), stars = TRUE)
+
+# Lagged-outcome
+
+# Lagged-outcome triple interaction
+```
+
+C-H3E: Contingent on the (percentage point) change in an assembly constituency's SC population share/log SC population and the share of voters who are self-identified centrists, increasing per capita exposure to FDI/change in per capita exposure to FDI is associated with a larger change in the share of the vote going to the far right.
+```{r}
+# 2014 cross-section
+modelsummary(feols(d_fr_party_vote_share_2009_2014_pp ~ log1p_fdi_total_local_all_pc100k_2014 * d_sc_higher_secondary_plus_share_age7plus_2001_2011_pp + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no, data = ac_change), stars = TRUE)
+
+modelsummary(feols(d_fr_party_vote_share_2009_2014_pp ~ log1p_fdi_total_own_all_pc100k_2014 * d_sc_higher_secondary_plus_share_age7plus_2001_2011_pp + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no, data = ac_change), stars = TRUE)
+
+# 2014 triple interaction
+modelsummary(feols(d_fr_party_vote_share_2009_2014_pp ~ log1p_fdi_total_own_all_pc100k_2014 * d_sc_higher_secondary_plus_share_age7plus_2001_2011_pp * nes_share_center_all_respondents_2014 + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no, data = ac_change), stars = TRUE)
+
+modelsummary(feols(d_fr_party_vote_share_2009_2014_pp ~ log1p_fdi_total_own_all_pc100k_2014 * d_sc_higher_secondary_plus_share_age7plus_2001_2011_pp * nes_share_center_all_respondents_2014 + ed_sec_share + log_secc_cons_pc + proxy_ac_pop + sc_pop_share + st_pop_share | state_no, data = ac_change), stars = TRUE)
+
+# Lagged-outcome
+
+# Lagged-outcome triple interaction
+```

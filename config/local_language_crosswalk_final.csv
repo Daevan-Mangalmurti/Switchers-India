@@ -1,0 +1,294 @@
+state_no,state,canonical_language,assignment_source,mother_tongue_name_2001,mother_tongue_code_2001,mapping_status_2001,include_2001_level,mother_tongue_name_2011,mother_tongue_code_2011,mapping_status_2011,include_2011_level,include_common_2001_2011_change,overall_status,ambiguity_note
+1,Jammu & Kashmir,Balti,user_addition,BALTI,029002,exact source spelling,True,Balti,029002,exact source spelling,True,True,ready,
+1,Jammu & Kashmir,Bhotiya,user_addition,BHOTIA,031001,source alias/combined label,True,Bhotia,031001,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+1,Jammu & Kashmir,Dogri,official_source,DOGRI,004001,exact source spelling,True,Dogri,004001,exact source spelling,True,True,ready,
+1,Jammu & Kashmir,English,official_source,ENGLISH,040001,exact source spelling,True,English,040001,exact source spelling,True,True,ready,
+1,Jammu & Kashmir,Hindi,official_source,HINDI,006118,exact source spelling,True,Hindi,006240,exact source spelling,True,True,ready,
+1,Jammu & Kashmir,Kashmiri,official_source,KASHMIRI,008002,exact source spelling,True,Kashmiri,008005,exact source spelling,True,True,ready,
+1,Jammu & Kashmir,Ladakhi,user_addition,LADAKHI,073002,exact source spelling,True,Ladakhi,073003,exact source spelling,True,True,ready,
+1,Jammu & Kashmir,Shina,user_addition,SHINA,108005,exact source spelling,True,Shina,109005,exact source spelling,True,True,ready,
+1,Jammu & Kashmir,Tibetan,user_addition,TIBETAN,114008,exact source spelling,True,Tibetan,115008,exact source spelling,True,True,ready,
+1,Jammu & Kashmir,Urdu,official_source,URDU,022014,exact source spelling,True,Urdu,022015,exact source spelling,True,True,ready,
+2,Himachal Pradesh,Bhotiya,user_addition,BHOTIA,031001,source alias/combined label,True,Bhotia,031001,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+2,Himachal Pradesh,Hindi,official_source,HINDI,006118,exact source spelling,True,Hindi,006240,exact source spelling,True,True,ready,
+2,Himachal Pradesh,Kinnauri,user_addition,KINNAURI,059003,exact source spelling,True,Kinnauri,059003,exact source spelling,True,True,ready,
+2,Himachal Pradesh,Lahauli,user_addition,LAHAULI,074002,exact source spelling,True,Lahauli,074002,exact source spelling,True,True,ready,
+2,Himachal Pradesh,Sanskrit,official_source,SANSKRIT,017002,exact source spelling,True,Sanskrit,017002,exact source spelling,True,True,ready,
+2,Himachal Pradesh,Tibetan,user_addition,TIBETAN,114008,exact source spelling,True,Tibetan,115008,exact source spelling,True,True,ready,
+3,Punjab,Lahnda,user_addition,LAHNDA,075000,exact source spelling; parent row only,True,LAHNDA,075000,exact source spelling; parent row only,True,True,ready_with_source_caveat,"at least one year has only a parent row, not a distinct child mother-tongue row"
+3,Punjab,Punjabi,official_source,PUNJABI,016018,exact source spelling,True,Punjabi,016038,exact source spelling,True,True,ready,
+4,Chandigarh,English,official_source,ENGLISH,040001,exact source spelling,True,English,040001,exact source spelling,True,True,ready,
+5,Uttarakhand,Bhotiya,user_addition,BHOTIA,031001,source alias/combined label,True,Bhotia,031001,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+5,Uttarakhand,Hindi,official_source,HINDI,006118,exact source spelling,True,Hindi,006240,exact source spelling,True,True,ready,
+5,Uttarakhand,Sanskrit,official_source,SANSKRIT,017002,exact source spelling,True,Sanskrit,017002,exact source spelling,True,True,ready,
+5,Uttarakhand,Tibetan,user_addition,TIBETAN,114008,exact source spelling,True,Tibetan,115008,exact source spelling,True,True,ready,
+6,Haryana,English,official_source,ENGLISH,040001,exact source spelling,True,English,040001,exact source spelling,True,True,ready,
+6,Haryana,Hindi,official_source,HINDI,006118,exact source spelling,True,Hindi,006240,exact source spelling,True,True,ready,
+6,Haryana,Punjabi,official_source,PUNJABI,016018,exact source spelling,True,Punjabi,016038,exact source spelling,True,True,ready,
+7,Delhi,English,official_source,ENGLISH,040001,exact source spelling,True,English,040001,exact source spelling,True,True,ready,
+7,Delhi,Hindi,official_source,HINDI,006118,exact source spelling,True,Hindi,006240,exact source spelling,True,True,ready,
+7,Delhi,Punjabi,official_source,PUNJABI,016018,exact source spelling,True,Punjabi,016038,exact source spelling,True,True,ready,
+7,Delhi,Urdu,official_source,URDU,022014,exact source spelling,True,Urdu,022015,exact source spelling,True,True,ready,
+8,Rajasthan,Bhili,user_addition,BHILI/BHILODI,030007,source alias/combined label,True,Bhili/Bhilodi,030007,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+8,Rajasthan,Hindi,official_source,HINDI,006118,exact source spelling,True,Hindi,006240,exact source spelling,True,True,ready,
+9,Uttar Pradesh,Hindi,official_source,HINDI,006118,exact source spelling,True,Hindi,006240,exact source spelling,True,True,ready,
+9,Uttar Pradesh,Kurukh,user_addition,KURUKH/ORAON,072009,source alias/combined label,True,Kurukh/Oraon,072024,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+9,Uttar Pradesh,Urdu,official_source,URDU,022014,exact source spelling,True,Urdu,022015,exact source spelling,True,True,ready,
+10,Bihar,Hindi,official_source,HINDI,006118,exact source spelling,True,Hindi,006240,exact source spelling,True,True,ready,
+10,Bihar,Kurukh,user_addition,KURUKH/ORAON,072009,source alias/combined label,True,Kurukh/Oraon,072024,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+10,Bihar,Malto,user_addition,MALTO,083000,exact source spelling; parent row only,True,MALTO,083000,exact source spelling; parent row only,True,True,ready_with_source_caveat,"at least one year has only a parent row, not a distinct child mother-tongue row"
+10,Bihar,Urdu,official_source,URDU,022014,exact source spelling,True,Urdu,022015,exact source spelling,True,True,ready,
+11,Sikkim,Bhotiya,user_addition,BHOTIA,031001,source alias/combined label,True,Bhotia,031001,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+11,Sikkim,English,official_source,ENGLISH,040001,exact source spelling,True,English,040001,exact source spelling,True,True,ready,
+11,Sikkim,Gurung,official_source,,,not separately tabulated,False,,,not separately tabulated,False,False,not_common_year_comparable,not separately tabulated in 2001; not separately tabulated in 2011
+11,Sikkim,Lepcha,official_source + user_addition,LEPCHA,078001,exact source spelling,True,Lepcha,078001,exact source spelling,True,True,ready,
+11,Sikkim,Limbu,official_source,LIMBU,080002,exact source spelling,True,Limbu,080002,exact source spelling,True,True,ready,
+11,Sikkim,Magar,official_source,,,not separately tabulated,False,,,not separately tabulated,False,False,not_common_year_comparable,not separately tabulated in 2001; not separately tabulated in 2011
+11,Sikkim,Mukhia,official_source,,,not separately tabulated,False,,,not separately tabulated,False,False,not_common_year_comparable,not separately tabulated in 2001; not separately tabulated in 2011
+11,Sikkim,Nepali,official_source,NEPALI,014009,exact source spelling,True,Nepali,014011,exact source spelling,True,True,ready,
+11,Sikkim,Newari,official_source,,,not separately tabulated,False,,,not separately tabulated,False,False,not_common_year_comparable,not separately tabulated in 2001; not separately tabulated in 2011
+11,Sikkim,Rai,official_source + user_addition,RAI,102002,exact source spelling,True,Rai,103003,exact source spelling,True,True,ready,
+11,Sikkim,Sherpa,official_source + user_addition,SHERPA,107001,exact source spelling,True,Sherpa,108001,exact source spelling,True,True,ready,
+11,Sikkim,Sikkimese,official_source,SIKKIMESE,109001,exact source spelling,False,,,not separately tabulated,False,False,not_common_year_comparable,"not separately tabulated in 2011; 2001 code 109001 is paired with multiple labels across state files: SIKKIMESE, SIMPA, SIMTE"
+11,Sikkim,Tamang,official_source + user_addition,TAMANG,110001,exact source spelling,True,Tamang,111001,exact source spelling,True,True,ready,
+11,Sikkim,Tibetan,user_addition,TIBETAN,114008,exact source spelling,True,Tibetan,115008,exact source spelling,True,True,ready,
+12,Arunachal Pradesh,Adi,user_addition,ADI,023002,exact source spelling,True,Adi,023003,exact source spelling,True,True,ready,
+12,Arunachal Pradesh,Bhotiya,user_addition,BHOTIA,031001,source alias/combined label,True,Bhotia,031001,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+12,Arunachal Pradesh,Deori,user_addition,DEORI,038001,exact source spelling,True,Deori,038001,exact source spelling,True,True,ready,
+12,Arunachal Pradesh,English,official_source,ENGLISH,040001,exact source spelling,True,English,040001,exact source spelling,True,True,ready,
+12,Arunachal Pradesh,Mishing,user_addition,MIRI/MISHING,086003,source alias/combined label,True,Miri/Mishing,087003,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+12,Arunachal Pradesh,Mishmi,user_addition,MISHMI,087005,exact source spelling,True,Mishmi,088007,exact source spelling,True,True,ready,
+12,Arunachal Pradesh,Monpa,user_addition,MONPA,089003,exact source spelling,True,Monpa,090003,exact source spelling,True,True,ready,
+12,Arunachal Pradesh,Nissi,user_addition,NISSI,093007,exact source spelling,True,Nissi/Dafla,094007,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+12,Arunachal Pradesh,Nocte,user_addition,NOCTE,094003,exact source spelling,True,Nocte,095003,exact source spelling,True,True,ready,
+12,Arunachal Pradesh,Tangsa,user_addition,TANGSA,112017,exact source spelling,True,TANGSA,113000,exact source spelling; parent row only,True,True,ready_with_source_caveat,"at least one year has only a parent row, not a distinct child mother-tongue row"
+12,Arunachal Pradesh,Tibetan,user_addition,TIBETAN,114008,exact source spelling,True,Tibetan,115008,exact source spelling,True,True,ready,
+12,Arunachal Pradesh,Wancho,user_addition,WANCHO,118001,exact source spelling,True,Wancho,119001,exact source spelling,True,True,ready,
+13,Nagaland,Angami,user_addition,ANGAMI,026002,exact source spelling,True,Angami,026002,exact source spelling,True,True,ready,
+13,Nagaland,Ao,user_addition,AO,027001,exact source spelling,True,Ao,027001,exact source spelling,True,True,ready,
+13,Nagaland,Chakhesang,user_addition,CHAKHESANG,034001,exact source spelling,True,Chakhesang,034001,exact source spelling,True,True,ready,
+13,Nagaland,Chang,user_addition,CHANG,036001,exact source spelling,True,Chang,036001,exact source spelling,True,True,ready,
+13,Nagaland,Chokri,user_addition,CHAKRU/CHOKRI,035001,source alias/combined label,True,Chakru/Chokri,035001,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+13,Nagaland,Dimasa,user_addition,DIMASA,039002,exact source spelling,True,Dimasa,039002,exact source spelling,True,True,ready,
+13,Nagaland,English,official_source,ENGLISH,040001,exact source spelling,True,English,040001,exact source spelling,True,True,ready,
+13,Nagaland,Kabui,user_addition,KABUI,051003,exact source spelling,True,Kabui,051003,exact source spelling,True,True,ready,
+13,Nagaland,Khezha,user_addition,KHEZHA,056001,exact source spelling,True,Khezha,056003,exact source spelling,True,True,ready,
+13,Nagaland,Khiemnungan,user_addition,KHIEMNUNGAN,057001,exact source spelling,True,Khiemnungan,057001,exact source spelling,True,True,ready,
+13,Nagaland,Konyak,user_addition,KONYAK,066001,exact source spelling,True,Konyak,066001,exact source spelling,True,True,ready,
+13,Nagaland,Kuki,user_addition,KUKI,071007,exact source spelling,True,Kuki,071008,exact source spelling,True,True,ready,
+13,Nagaland,Liangmei,user_addition,LIANGMEI,079002,exact source spelling,True,Liangmei,079002,exact source spelling,True,True,ready,
+13,Nagaland,Lotha,user_addition,LOTHA,081001,exact source spelling,True,Lotha,081001,exact source spelling,True,True,ready,
+13,Nagaland,Mao,user_addition,,,not separately tabulated,False,Mao,084001,exact source spelling,True,False,not_common_year_comparable,not separately tabulated in 2001
+13,Nagaland,Phom,user_addition,PHOM,099001,exact source spelling,True,Phom,100001,exact source spelling,True,True,ready,
+13,Nagaland,Pochury,user_addition,POCHURY,100005,exact source spelling,True,Pochury,101006,exact source spelling,True,True,ready,
+13,Nagaland,Rengma,user_addition,RENGMA,103001,exact source spelling,True,Rengma,104001,exact source spelling,True,True,ready,
+13,Nagaland,Sangtam,user_addition,SANGTAM,104003,exact source spelling,True,Sangtam,105004,exact source spelling,True,True,ready,
+13,Nagaland,Sema,user_addition,SEMA,106001,exact source spelling,True,Sema,107002,exact source spelling,True,True,ready,
+13,Nagaland,Yimchungre,user_addition,YIMCHUNGRE,119004,exact source spelling,True,Yimchungre,120005,exact source spelling,True,True,ready,
+13,Nagaland,Zeliang,user_addition,ZELIANG,120001,exact source spelling,True,Zeliang,121001,exact source spelling,True,True,ready,
+13,Nagaland,Zemi,user_addition,ZEMI,121002,exact source spelling,True,Zemi,122003,exact source spelling,True,True,ready,
+14,Manipur,Anal,user_addition,ANAL,025001,exact source spelling,True,Anal,025001,exact source spelling,True,True,ready,
+14,Manipur,Bishnupuriya,user_addition,BISHNUPRIYA MANIPURI/MANIPURI BISHNUPRIYA,033001,source alias/combined label,True,Bishnupriya Manipuri/Manipuri Bishnupriya,033003,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+14,Manipur,Chakhesang,user_addition,CHAKHESANG,034001,exact source spelling,True,Chakhesang,034001,exact source spelling,True,True,ready,
+14,Manipur,English,official_source,ENGLISH,040001,exact source spelling,True,English,040001,exact source spelling,True,True,ready,
+14,Manipur,Gangte,user_addition,GANGTE,042001,exact source spelling,True,Gangte,042001,exact source spelling,True,True,ready,
+14,Manipur,Hmar,user_addition,HMAR,047001,exact source spelling,True,Hmar,047001,exact source spelling,True,True,ready,
+14,Manipur,Kabui,user_addition,KABUI,051003,exact source spelling,True,Kabui,051003,exact source spelling,True,True,ready,
+14,Manipur,Khezha,user_addition,KHEZHA,056001,exact source spelling,True,Khezha,056003,exact source spelling,True,True,ready,
+14,Manipur,Kom,user_addition,KOM,064001,exact source spelling,True,Kom,064001,exact source spelling,True,True,ready,
+14,Manipur,Kuki,user_addition,KUKI,071007,exact source spelling,True,Kuki,071008,exact source spelling,True,True,ready,
+14,Manipur,Liangmei,user_addition,LIANGMEI,079002,exact source spelling,True,Liangmei,079002,exact source spelling,True,True,ready,
+14,Manipur,Manipuri,official_source,MANIPURI,012002,exact source spelling,True,Manipuri,012003,exact source spelling,True,True,ready,
+14,Manipur,Mao,user_addition,,,not separately tabulated,False,Mao,084001,exact source spelling,True,False,not_common_year_comparable,not separately tabulated in 2001
+14,Manipur,Maram,user_addition,MARAM,084001,exact source spelling,True,Maram,085001,exact source spelling,True,True,ready,
+14,Manipur,Maring,user_addition,MARING,085001,exact source spelling,True,Maring,086001,exact source spelling,True,True,ready,
+14,Manipur,Mizo,user_addition,LUSHAI/MIZO,082003,source alias/combined label,True,Lushai/Mizo,082005,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+14,Manipur,Paite,user_addition,PAITE,095002,exact source spelling,True,Paite,096002,exact source spelling,True,True,ready,
+14,Manipur,Tangkhul,user_addition,TANGKHUL,111005,exact source spelling,True,Tangkhul,112008,exact source spelling,True,True,ready,
+14,Manipur,Thado,user_addition,THADO,113015,exact source spelling,True,Thado,114015,exact source spelling,True,True,ready,
+14,Manipur,Vaiphei,user_addition,VAIPHEI,117001,exact source spelling,True,Vaiphei,118002,exact source spelling,True,True,ready,
+14,Manipur,Yimchungre,user_addition,YIMCHUNGRE,119004,exact source spelling,True,Yimchungre,120005,exact source spelling,True,True,ready,
+14,Manipur,Zeliang,user_addition,ZELIANG,120001,exact source spelling,True,Zeliang,121001,exact source spelling,True,True,ready,
+14,Manipur,Zemi,user_addition,ZEMI,121002,exact source spelling,True,Zemi,122003,exact source spelling,True,True,ready,
+14,Manipur,Zou,user_addition,ZOU,122001,exact source spelling,True,Zou,123001,exact source spelling,True,True,ready,
+15,Mizoram,English,official_source,ENGLISH,040001,exact source spelling,True,English,040001,exact source spelling,True,True,ready,
+15,Mizoram,Hindi,official_source,HINDI,006118,exact source spelling,True,Hindi,006240,exact source spelling,True,True,ready,
+15,Mizoram,Hmar,user_addition,HMAR,047001,exact source spelling,True,Hmar,047001,exact source spelling,True,True,ready,
+15,Mizoram,Lakher,user_addition,LAKHER,076001,exact source spelling,True,LAKHER,076000,exact source spelling; parent row only,True,True,ready_with_source_caveat,"at least one year has only a parent row, not a distinct child mother-tongue row"
+15,Mizoram,Mizo,official_source + user_addition,LUSHAI/MIZO,082003,source alias/combined label,True,Lushai/Mizo,082005,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+15,Mizoram,Paite,user_addition,PAITE,095002,exact source spelling,True,Paite,096002,exact source spelling,True,True,ready,
+15,Mizoram,Pawi,user_addition,PAWI,097001,exact source spelling,True,Pawi,098001,exact source spelling,True,True,ready,
+15,Mizoram,Tripuri,user_addition,TRIPURI,115006,exact source spelling,True,Tripuri,116014,exact source spelling,True,True,ready,
+16,Tripura,Bengali,official_source,BENGALI,002004,exact source spelling,True,Bengali,002007,exact source spelling,True,True,ready,
+16,Tripura,Bishnupuriya,user_addition,BISHNUPRIYA MANIPURI/MANIPURI BISHNUPRIYA,033001,source alias/combined label,True,Bishnupriya Manipuri/Manipuri Bishnupriya,033003,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+16,Tripura,English,official_source,ENGLISH,040001,exact source spelling,True,English,040001,exact source spelling,True,True,ready,
+16,Tripura,Garo,user_addition,GARO,043005,exact source spelling,True,Garo,043005,exact source spelling,True,True,ready,
+16,Tripura,Halam,user_addition,HALAM,046003,exact source spelling,True,Halam,046003,exact source spelling,True,True,ready,
+16,Tripura,Hmar,user_addition,HMAR,047001,exact source spelling,True,Hmar,047001,exact source spelling,True,True,ready,
+16,Tripura,Kokborok,official_source,KOK BARAK,115002,source alias/combined label,True,Kokbarak,116007,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+16,Tripura,Mizo,user_addition,LUSHAI/MIZO,082003,source alias/combined label,True,Lushai/Mizo,082005,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+16,Tripura,Mogh,user_addition,MOGH,088002,exact source spelling,True,Mogh,089004,exact source spelling,True,True,ready,
+16,Tripura,Tripuri,user_addition,TRIPURI,115006,exact source spelling,True,Tripuri,116014,exact source spelling,True,True,ready,
+17,Meghalaya,English,official_source,ENGLISH,040001,exact source spelling,True,English,040001,exact source spelling,True,True,ready,
+17,Meghalaya,Gangte,user_addition,GANGTE,042001,exact source spelling,True,Gangte,042001,exact source spelling,True,True,ready,
+17,Meghalaya,Garo,official_source + user_addition,GARO,043005,exact source spelling,True,Garo,043005,exact source spelling,True,True,ready,
+17,Meghalaya,Hmar,user_addition,HMAR,047001,exact source spelling,True,Hmar,047001,exact source spelling,True,True,ready,
+17,Meghalaya,Karbi,user_addition,KARBI,052002,exact source spelling,True,Karbi/Mikir,052002,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+17,Meghalaya,Khasi,official_source + user_addition,KHASI,055006,exact source spelling,True,Khasi,055007,exact source spelling,True,True,ready,
+17,Meghalaya,Koch,user_addition,KOCH,061002,exact source spelling,True,Koch,061002,exact source spelling,True,True,ready,
+17,Meghalaya,Lalung,user_addition,LALUNG,077001,exact source spelling,True,Lalung,077001,exact source spelling,True,True,ready,
+17,Meghalaya,Rabha,user_addition,RABHA,101002,exact source spelling,True,Rabha,102002,exact source spelling,True,True,ready,
+18,Assam,Assamese,official_source,ASSAMESE,001002,exact source spelling,True,Assamese,001002,exact source spelling,True,True,ready,
+18,Assam,Bengali,official_source,BENGALI,002004,exact source spelling,True,Bengali,002007,exact source spelling,True,True,ready,
+18,Assam,Bishnupuriya,user_addition,BISHNUPRIYA MANIPURI/MANIPURI BISHNUPRIYA,033001,source alias/combined label,True,Bishnupriya Manipuri/Manipuri Bishnupriya,033003,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+18,Assam,Bodo,official_source,BODO,003001,exact source spelling,True,Bodo/Boro,003001,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+18,Assam,Deori,user_addition,DEORI,038001,exact source spelling,True,Deori,038001,exact source spelling,True,True,ready,
+18,Assam,Dimasa,user_addition,DIMASA,039002,exact source spelling,True,Dimasa,039002,exact source spelling,True,True,ready,
+18,Assam,Gangte,user_addition,GANGTE,042001,exact source spelling,True,Gangte,042001,exact source spelling,True,True,ready,
+18,Assam,Garo,user_addition,GARO,043005,exact source spelling,True,Garo,043005,exact source spelling,True,True,ready,
+18,Assam,Hmar,user_addition,HMAR,047001,exact source spelling,True,Hmar,047001,exact source spelling,True,True,ready,
+18,Assam,Kabui,user_addition,KABUI,051003,exact source spelling,True,Kabui,051003,exact source spelling,True,True,ready,
+18,Assam,Karbi,user_addition,KARBI,052002,exact source spelling,True,Karbi/Mikir,052002,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+18,Assam,Khasi,user_addition,KHASI,055006,exact source spelling,True,Khasi,055007,exact source spelling,True,True,ready,
+18,Assam,Koch,user_addition,KOCH,061002,exact source spelling,True,Koch,061002,exact source spelling,True,True,ready,
+18,Assam,Kuki,user_addition,KUKI,071007,exact source spelling,True,Kuki,071008,exact source spelling,True,True,ready,
+18,Assam,Kurukh,user_addition,KURUKH/ORAON,072009,source alias/combined label,True,Kurukh/Oraon,072024,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+18,Assam,Lalung,user_addition,LALUNG,077001,exact source spelling,True,Lalung,077001,exact source spelling,True,True,ready,
+18,Assam,Mishing,user_addition,MIRI/MISHING,086003,source alias/combined label,True,Miri/Mishing,087003,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+18,Assam,Mishmi,user_addition,MISHMI,087005,exact source spelling,True,Mishmi,088007,exact source spelling,True,True,ready,
+18,Assam,Mizo,user_addition,LUSHAI/MIZO,082003,source alias/combined label,True,Lushai/Mizo,082005,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+18,Assam,Nissi,user_addition,NISSI,093007,exact source spelling,True,Nissi/Dafla,094007,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+18,Assam,Rabha,user_addition,RABHA,101002,exact source spelling,True,Rabha,102002,exact source spelling,True,True,ready,
+18,Assam,Sema,user_addition,SEMA,106001,exact source spelling,True,Sema,107002,exact source spelling,True,True,ready,
+18,Assam,Tamang,user_addition,TAMANG,110001,exact source spelling,True,Tamang,111001,exact source spelling,True,True,ready,
+18,Assam,Tripuri,user_addition,TRIPURI,115006,exact source spelling,True,Tripuri,116014,exact source spelling,True,True,ready,
+18,Assam,Zemi,user_addition,ZEMI,121002,exact source spelling,True,Zemi,122003,exact source spelling,True,True,ready,
+19,West Bengal,Bengali,official_source,BENGALI,002004,exact source spelling,True,Bengali,002007,exact source spelling,True,True,ready,
+19,West Bengal,Bhumij,user_addition,BHUMIJ,032002,exact source spelling,True,Bhumij,032002,exact source spelling,True,True,ready,
+19,West Bengal,English,official_source,ENGLISH,040001,exact source spelling,True,English,040001,exact source spelling,True,True,ready,
+19,West Bengal,Hindi,official_source,HINDI,006118,exact source spelling,True,Hindi,006240,exact source spelling,True,True,ready,
+19,West Bengal,Kamtapuri,official_source,,,not separately tabulated,False,,,not separately tabulated,False,False,not_common_year_comparable,not separately tabulated in 2001; not separately tabulated in 2011
+19,West Bengal,Kisan,user_addition,KISAN,060001,exact source spelling,True,Kisan,060002,exact source spelling,True,True,ready,
+19,West Bengal,Koch,user_addition,KOCH,061002,exact source spelling,True,Koch,061002,exact source spelling,True,True,ready,
+19,West Bengal,Koda,user_addition,KODA/KORA,062003,source alias/combined label,True,Koda/Kora,062003,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+19,West Bengal,Kurmali,official_source,KURMALI THAR,006165,source alias/combined label,True,Kurmali Thar,006345,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+19,West Bengal,Kurukh,official_source + user_addition,KURUKH/ORAON,072009,source alias/combined label,True,Kurukh/Oraon,072024,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+19,West Bengal,Lepcha,user_addition,LEPCHA,078001,exact source spelling,True,Lepcha,078001,exact source spelling,True,True,ready,
+19,West Bengal,Malto,user_addition,MALTO,083000,exact source spelling; parent row only,True,MALTO,083000,exact source spelling; parent row only,True,True,ready_with_source_caveat,"at least one year has only a parent row, not a distinct child mother-tongue row"
+19,West Bengal,Munda,user_addition,MUNDA,090006,exact source spelling,True,Munda,091009,exact source spelling,True,True,ready,
+19,West Bengal,Mundari,user_addition,MUNDARI,091004,exact source spelling,True,Mundari,092005,exact source spelling,True,True,ready,
+19,West Bengal,Nepali,official_source,NEPALI,014009,exact source spelling,True,Nepali,014011,exact source spelling,True,True,ready,
+19,West Bengal,Odia,official_source,ORIYA,015031,source alias/combined label,True,Odia,015043,exact source spelling,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+19,West Bengal,Punjabi,official_source,PUNJABI,016018,exact source spelling,True,Punjabi,016038,exact source spelling,True,True,ready,
+19,West Bengal,Rabha,user_addition,RABHA,101002,exact source spelling,True,Rabha,102002,exact source spelling,True,True,ready,
+19,West Bengal,Rajbanshi,official_source,RAJBANGSI,002023,source alias/combined label,True,Rajbangsi,002044,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+19,West Bengal,Santali,official_source,SANTALI,018013,exact source spelling,True,Santali,018040,exact source spelling,True,True,ready,
+19,West Bengal,Tamang,user_addition,TAMANG,110001,exact source spelling,True,Tamang,111001,exact source spelling,True,True,ready,
+19,West Bengal,Telugu,official_source,TELUGU,021035,exact source spelling,True,Telugu,021046,exact source spelling,True,True,ready,
+19,West Bengal,Urdu,official_source,URDU,022014,exact source spelling,True,Urdu,022015,exact source spelling,True,True,ready,
+20,Jharkhand,Angika,official_source,,,not separately tabulated,False,,,not separately tabulated,False,False,not_common_year_comparable,not separately tabulated in 2001; not separately tabulated in 2011
+20,Jharkhand,Bengali,official_source,BENGALI,002004,exact source spelling,True,Bengali,002007,exact source spelling,True,True,ready,
+20,Jharkhand,Bhojpuri,official_source,BHOJPURI,006045,exact source spelling,True,Bhojpuri,006102,exact source spelling,True,True,ready,
+20,Jharkhand,Bhumij,user_addition,BHUMIJ,032002,exact source spelling,True,Bhumij,032002,exact source spelling,True,True,ready,
+20,Jharkhand,Hindi,official_source,HINDI,006118,exact source spelling,True,Hindi,006240,exact source spelling,True,True,ready,
+20,Jharkhand,Ho,official_source + user_addition,HO,048002,exact source spelling,True,Ho,048004,exact source spelling,True,True,ready,
+20,Jharkhand,Kharia,official_source + user_addition,KHARIA,054004,exact source spelling,True,Kharia,054005,exact source spelling,True,True,ready,
+20,Jharkhand,Khortha,official_source,KHORTHA/KHOTTA,006153,source alias/combined label,True,Khortha/Khotta,006320,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+20,Jharkhand,Kisan,user_addition,KISAN,060001,exact source spelling,True,Kisan,060002,exact source spelling,True,True,ready,
+20,Jharkhand,Koda,user_addition,KODA/KORA,062003,source alias/combined label,True,Koda/Kora,062003,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+20,Jharkhand,Korwa,user_addition,KORWA,068000,exact source spelling; parent row only,True,KORWA,068000,exact source spelling; parent row only,True,True,ready_with_source_caveat,"at least one year has only a parent row, not a distinct child mother-tongue row"
+20,Jharkhand,Kurmali,official_source,KURMALI THAR,006165,source alias/combined label,True,Kurmali Thar,006345,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+20,Jharkhand,Kurukh,official_source + user_addition,KURUKH/ORAON,072009,source alias/combined label,True,Kurukh/Oraon,072024,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+20,Jharkhand,Magahi,official_source,MAGADHI/MAGAHI,006179,source alias/combined label,True,Magadhi/Magahi,006376,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+20,Jharkhand,Maithili,official_source,MAITHILI,010006,exact source spelling,True,Maithili,010008,exact source spelling,True,True,ready,
+20,Jharkhand,Malto,user_addition,MALTO,083000,exact source spelling; parent row only,True,MALTO,083000,exact source spelling; parent row only,True,True,ready_with_source_caveat,"at least one year has only a parent row, not a distinct child mother-tongue row"
+20,Jharkhand,Munda,user_addition,MUNDA,090006,exact source spelling,True,Munda,091009,exact source spelling,True,True,ready,
+20,Jharkhand,Mundari,official_source + user_addition,MUNDARI,091004,exact source spelling,True,Mundari,092005,exact source spelling,True,True,ready,
+20,Jharkhand,Nagpuri,official_source,NAGPURIA,006204,source alias/combined label,True,Nagpuria,006420,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+20,Jharkhand,Odia,official_source,ORIYA,015031,source alias/combined label,True,Odia,015043,exact source spelling,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+20,Jharkhand,Santali,official_source,SANTALI,018013,exact source spelling,True,Santali,018040,exact source spelling,True,True,ready,
+20,Jharkhand,Urdu,official_source,URDU,022014,exact source spelling,True,Urdu,022015,exact source spelling,True,True,ready,
+21,Odisha,Bhumij,user_addition,BHUMIJ,032002,exact source spelling,True,Bhumij,032002,exact source spelling,True,True,ready,
+21,Odisha,Gadaba,user_addition,GADABA,041001,exact source spelling,True,Gadaba,041001,exact source spelling,True,True,ready,
+21,Odisha,Gondi,user_addition,GONDI,044006,exact source spelling,True,Gondi,044007,exact source spelling,True,True,ready,
+21,Odisha,Halabi,user_addition,HALABI,045001,exact source spelling,True,Halabi,045001,exact source spelling,True,True,ready,
+21,Odisha,Ho,user_addition,HO,048002,exact source spelling,True,Ho,048004,exact source spelling,True,True,ready,
+21,Odisha,Juang,user_addition,JUANG,050001,exact source spelling,True,Juang,050001,exact source spelling,True,True,ready,
+21,Odisha,Kharia,user_addition,KHARIA,054004,exact source spelling,True,Kharia,054005,exact source spelling,True,True,ready,
+21,Odisha,Khond,user_addition,KHOND/KONDH,058001,source alias/combined label,True,Khond/Kondh,058001,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+21,Odisha,Koda,user_addition,KODA/KORA,062003,source alias/combined label,True,Koda/Kora,062003,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+21,Odisha,Konda,user_addition,KONDA,065000,exact source spelling; parent row only,True,Konda,065003,exact source spelling,True,True,ready_with_source_caveat,"at least one year has only a parent row, not a distinct child mother-tongue row"
+21,Odisha,Koya,user_addition,KOYA,069001,exact source spelling,True,Koya,069002,exact source spelling,True,True,ready,
+21,Odisha,Kui,user_addition,KUI,070001,exact source spelling,True,Kui,070001,exact source spelling,True,True,ready,
+21,Odisha,Kurukh,user_addition,KURUKH/ORAON,072009,source alias/combined label,True,Kurukh/Oraon,072024,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+21,Odisha,Malto,user_addition,MALTO,083000,exact source spelling; parent row only,True,MALTO,083000,exact source spelling; parent row only,True,True,ready_with_source_caveat,"at least one year has only a parent row, not a distinct child mother-tongue row"
+21,Odisha,Munda,user_addition,MUNDA,090006,exact source spelling,True,Munda,091009,exact source spelling,True,True,ready,
+21,Odisha,Mundari,user_addition,MUNDARI,091004,exact source spelling,True,Mundari,092005,exact source spelling,True,True,ready,
+21,Odisha,Odia,official_source,ORIYA,015031,source alias/combined label,True,Odia,015043,exact source spelling,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+21,Odisha,Savara,user_addition,SAVARA,105002,exact source spelling,True,Savara,106004,exact source spelling,True,True,ready,
+22,Chhattisgarh,Chhattisgarhi,official_source,CHHATTISGARHI,006072,exact source spelling,True,Chhattisgarhi,006142,exact source spelling,True,True,ready,
+22,Chhattisgarh,Gondi,user_addition,GONDI,044006,exact source spelling,True,Gondi,044007,exact source spelling,True,True,ready,
+22,Chhattisgarh,Halabi,user_addition,HALABI,045001,exact source spelling,True,Halabi,045001,exact source spelling,True,True,ready,
+22,Chhattisgarh,Hindi,official_source,HINDI,006118,exact source spelling,True,Hindi,006240,exact source spelling,True,True,ready,
+22,Chhattisgarh,Kharia,user_addition,KHARIA,054004,exact source spelling,True,Kharia,054005,exact source spelling,True,True,ready,
+22,Chhattisgarh,Korwa,user_addition,KORWA,068000,exact source spelling; parent row only,True,KORWA,068000,exact source spelling; parent row only,True,True,ready_with_source_caveat,"at least one year has only a parent row, not a distinct child mother-tongue row"
+22,Chhattisgarh,Kurukh,user_addition,KURUKH/ORAON,072009,source alias/combined label,True,Kurukh/Oraon,072024,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+22,Chhattisgarh,Munda,user_addition,MUNDA,090006,exact source spelling,True,Munda,091009,exact source spelling,True,True,ready,
+22,Chhattisgarh,Parji,user_addition,PARJI,096000,exact source spelling; parent row only,True,PARJI,097000,exact source spelling; parent row only,True,True,ready_with_source_caveat,"at least one year has only a parent row, not a distinct child mother-tongue row"
+23,Madhya Pradesh,Bhili,user_addition,BHILI/BHILODI,030007,source alias/combined label,True,Bhili/Bhilodi,030007,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+23,Madhya Pradesh,Gondi,user_addition,GONDI,044006,exact source spelling,True,Gondi,044007,exact source spelling,True,True,ready,
+23,Madhya Pradesh,Hindi,official_source,HINDI,006118,exact source spelling,True,Hindi,006240,exact source spelling,True,True,ready,
+23,Madhya Pradesh,Korku,user_addition,KORKU,067001,exact source spelling,True,Korku,067001,exact source spelling,True,True,ready,
+24,Gujarat,Bhili,user_addition,BHILI/BHILODI,030007,source alias/combined label,True,Bhili/Bhilodi,030007,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+24,Gujarat,Gujarati,official_source,GUJARATI,005011,exact source spelling,True,Gujarati,005018,exact source spelling,True,True,ready,
+24,Gujarat,Hindi,official_source,HINDI,006118,exact source spelling,True,Hindi,006240,exact source spelling,True,True,ready,
+24,Gujarat,Khandeshi,user_addition,KHANDESHI,053006,exact source spelling,True,Khandeshi,053006,exact source spelling,True,True,ready,
+25,Daman & Diu,Gujarati,official_source,GUJARATI,005011,exact source spelling,True,Gujarati,005018,exact source spelling,True,True,ready,
+25,Daman & Diu,Hindi,official_source,HINDI,006118,exact source spelling,True,Hindi,006240,exact source spelling,True,True,ready,
+25,Daman & Diu,Konkani,official_source,KONKANI,009010,exact source spelling,True,Konkani,009011,exact source spelling,True,True,ready,
+25,Daman & Diu,Marathi,official_source,MARATHI,013048,exact source spelling,True,Marathi,013071,exact source spelling,True,True,ready,
+26,Dadra & Nagar Haveli,Bhili,user_addition,BHILI/BHILODI,030007,source alias/combined label,True,Bhili/Bhilodi,030007,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+26,Dadra & Nagar Haveli,Gujarati,official_source,GUJARATI,005011,exact source spelling,True,Gujarati,005018,exact source spelling,True,True,ready,
+26,Dadra & Nagar Haveli,Hindi,official_source,HINDI,006118,exact source spelling,True,Hindi,006240,exact source spelling,True,True,ready,
+26,Dadra & Nagar Haveli,Konkani,official_source,KONKANI,009010,exact source spelling,True,Konkani,009011,exact source spelling,True,True,ready,
+26,Dadra & Nagar Haveli,Marathi,official_source,MARATHI,013048,exact source spelling,True,Marathi,013071,exact source spelling,True,True,ready,
+27,Maharashtra,Bhili,user_addition,BHILI/BHILODI,030007,source alias/combined label,True,Bhili/Bhilodi,030007,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+27,Maharashtra,Gondi,user_addition,GONDI,044006,exact source spelling,True,Gondi,044007,exact source spelling,True,True,ready,
+27,Maharashtra,Halabi,user_addition,HALABI,045001,exact source spelling,True,Halabi,045001,exact source spelling,True,True,ready,
+27,Maharashtra,Khandeshi,user_addition,KHANDESHI,053006,exact source spelling,True,Khandeshi,053006,exact source spelling,True,True,ready,
+27,Maharashtra,Kolami,user_addition,KOLAMI,063001,exact source spelling,True,Kolami,063001,exact source spelling,True,True,ready,
+27,Maharashtra,Korku,user_addition,KORKU,067001,exact source spelling,True,Korku,067001,exact source spelling,True,True,ready,
+27,Maharashtra,Marathi,official_source,MARATHI,013048,exact source spelling,True,Marathi,013071,exact source spelling,True,True,ready,
+28,Andhra Pradesh (incl. Telangana),English,official_source,ENGLISH,040001,exact source spelling,True,English,040001,exact source spelling,True,True,ready,
+28,Andhra Pradesh (incl. Telangana),Gadaba,user_addition,GADABA,041001,exact source spelling,True,Gadaba,041001,exact source spelling,True,True,ready,
+28,Andhra Pradesh (incl. Telangana),Gondi,user_addition,GONDI,044006,exact source spelling,True,Gondi,044007,exact source spelling,True,True,ready,
+28,Andhra Pradesh (incl. Telangana),Jatapu,user_addition,JATAPU,049002,exact source spelling,True,Jatapu,049002,exact source spelling,True,True,ready,
+28,Andhra Pradesh (incl. Telangana),Khond,user_addition,KHOND/KONDH,058001,source alias/combined label,True,Khond/Kondh,058001,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+28,Andhra Pradesh (incl. Telangana),Kolami,user_addition,KOLAMI,063001,exact source spelling,True,Kolami,063001,exact source spelling,True,True,ready,
+28,Andhra Pradesh (incl. Telangana),Konda,user_addition,KONDA,065000,exact source spelling; parent row only,True,Konda,065003,exact source spelling,True,True,ready_with_source_caveat,"at least one year has only a parent row, not a distinct child mother-tongue row"
+28,Andhra Pradesh (incl. Telangana),Koya,user_addition,KOYA,069001,exact source spelling,True,Koya,069002,exact source spelling,True,True,ready,
+28,Andhra Pradesh (incl. Telangana),Savara,user_addition,SAVARA,105002,exact source spelling,True,Savara,106004,exact source spelling,True,True,ready,
+28,Andhra Pradesh (incl. Telangana),Telugu,official_source,TELUGU,021035,exact source spelling,True,Telugu,021046,exact source spelling,True,True,ready,
+28,Andhra Pradesh (incl. Telangana),Urdu,official_source,URDU,022014,exact source spelling,True,Urdu,022015,exact source spelling,True,True,ready,
+29,Karnataka,English,official_source,ENGLISH,040001,exact source spelling,True,English,040001,exact source spelling,True,True,ready,
+29,Karnataka,Kannada,official_source,KANNADA,007013,exact source spelling,True,Kannada,007016,exact source spelling,True,True,ready,
+29,Karnataka,Kodagu,user_addition,COORGI/KODAGU,037001,source alias/combined label,True,Coorgi/Kodagu,037001,source alias/combined label,True,True,ready_with_source_caveat,Census label combines the requested name with a variant or paired name
+29,Karnataka,Tulu,user_addition,TULU,116009,exact source spelling,True,Tulu,117009,exact source spelling,True,True,ready,
+30,Goa,English,official_source,ENGLISH,040001,exact source spelling,True,English,040001,exact source spelling,True,True,ready,
+30,Goa,Konkani,official_source,KONKANI,009010,exact source spelling,True,Konkani,009011,exact source spelling,True,True,ready,
+30,Goa,Marathi,official_source,MARATHI,013048,exact source spelling,True,Marathi,013071,exact source spelling,True,True,ready,
+31,Lakshadweep,English,official_source,ENGLISH,040001,exact source spelling,True,English,040001,exact source spelling,True,True,ready,
+31,Lakshadweep,Malayalam,official_source,MALAYALAM,011013,exact source spelling,True,Malayalam,011016,exact source spelling,True,True,ready,
+32,Kerala,English,official_source,ENGLISH,040001,exact source spelling,True,English,040001,exact source spelling,True,True,ready,
+32,Kerala,Malayalam,official_source,MALAYALAM,011013,exact source spelling,True,Malayalam,011016,exact source spelling,True,True,ready,
+32,Kerala,Tulu,user_addition,TULU,116009,exact source spelling,True,Tulu,117009,exact source spelling,True,True,ready,
+33,Tamil Nadu,English,official_source,ENGLISH,040001,exact source spelling,True,English,040001,exact source spelling,True,True,ready,
+33,Tamil Nadu,Tamil,official_source,TAMIL,020020,exact source spelling,True,Tamil,020027,exact source spelling,True,True,ready,
+34,Puducherry,English,official_source,ENGLISH,040001,exact source spelling,True,English,040001,exact source spelling,True,True,ready,
+34,Puducherry,French,official_source,,,not separately tabulated,False,,,not separately tabulated,False,False,not_common_year_comparable,not separately tabulated in 2001; not separately tabulated in 2011
+34,Puducherry,Malayalam,official_source,MALAYALAM,011013,exact source spelling,True,Malayalam,011016,exact source spelling,True,True,ready,
+34,Puducherry,Tamil,official_source,TAMIL,020020,exact source spelling,True,Tamil,020027,exact source spelling,True,True,ready,
+34,Puducherry,Telugu,official_source,TELUGU,021035,exact source spelling,True,Telugu,021046,exact source spelling,True,True,ready,
+35,Andaman & Nicobar Islands,English,official_source,ENGLISH,040001,exact source spelling,True,English,040001,exact source spelling,True,True,ready,
+35,Andaman & Nicobar Islands,Hindi,official_source,HINDI,006118,exact source spelling,True,Hindi,006240,exact source spelling,True,True,ready,
+35,Andaman & Nicobar Islands,Nicobarese,user_addition,NICOBARESE,092001,exact source spelling,True,Nicobarese,093001,exact source spelling,True,True,ready,

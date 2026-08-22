@@ -1,0 +1,708 @@
+---
+title: "J&C_Data_Merge_2009_2014"
+output: html_document
+date: "2026-01-05"
+---
+This code is to merge polling station (PS) level election data and mergefiles from 2009 and 2014 with census indicators, SHRUG data, migration data, political party data, and survey data from 2009 and 2014. 
+
+```{r Load libraries}
+library(dplyr)
+library(foreign)
+library(xtable)
+
+```
+
+```{r CODE TO MERGE PS-LEVEL ELECTION DATA AND MERGEFILES WITH CENSUS INDICATORS FROM 2009}
+##CODE TO MERGE PS-LEVEL ELECTION DATA AND MERGEFILES WITH CENSUS INDICATORS FROM 2009
+#By Francesca R. Jensenius, Pradeep Chhibber, Sanjeer Alam, Pranav Gupta, and Madhavan Somanathan
+
+#Approximate runtime 135 minutes
+
+# [Commented-out sections of code below are portions of original code that didn't work for me.]
+
+library(foreign)
+library(xtable)
+
+setwd("~/Downloads/Lab for Globalization and Shared Prosperity/dataverse_files/Data") ##Enter the directory where the data are saved
+
+# Merge PS-level data 2009
+fileshere<-list.files("PS_data2009", pattern=".csv", recursive=TRUE, full.names=TRUE)
+
+for (h in c(1:length(fileshere))){
+	
+onefile<-read.csv(fileshere[h])	
+
+if(h==1){
+PSdata2009<-onefile
+} else {
+PSdata2009 <-rbind(PSdata2009, onefile)	
+}
+}
+
+# Summary statistics PS-level data 2009
+dim(PSdata2009)
+summary(PSdata2009)
+
+# Collapse main and auxiliary booths to allow merge with mergefiles
+
+sum(duplicated(paste(PSdata2009$State_no2011, PSdata2009$PC_no, PSdata2009$AC_no, PSdata2009$PS_id)))
+table(PSdata2009$PS_id)
+
+# Strip PS-numbers of spaces and letters
+PSdata2009$PS_id<-gsub("\\s","", PSdata2009$PS_id)
+PSdata2009$PS_id<-gsub("\u00A0","", PSdata2009$PS_id)
+PSdata2009$PS_id<-gsub("[[:punct:]]","", PSdata2009$PS_id)
+PSdata2009$PS_id<-gsub("[[:alpha:]]","", PSdata2009$PS_id)
+PSdata2009$PS_id<-as.integer(as.character(PSdata2009$PS_id))
+
+table(PSdata2009$PS_id)
+sum(duplicated(paste(PSdata2009$State_no2011, PSdata2009$PC_no, PSdata2009$AC_no, PSdata2009$PS_id)))
+
+sum.rm.na.logical <- function(x){
+    # sums logical vector, treating NA's as 0 unless all NA the NA is returned      
+    res <- if(all(is.na(x))) NA else sum(x, na.rm=T) 
+    return(res)
+}
+
+### Collapse data 
+dim(PSdata2009)
+PSdata2009new<-aggregate(PSdata2009[,c(7:51)], by=list(PSdata2009$State_no2011, PSdata2009$PC_no, PSdata2009$PC_name, PSdata2009$AC_no, PSdata2009$AC_name, PSdata2009$PS_id), sum.rm.na.logical)
+
+dim(PSdata2009new)
+names(PSdata2009new)<-names(PSdata2009)
+summary(PSdata2009new)
+table(PSdata2009new$PS_id)
+
+# Merge the 2009 mergefiles
+fileshere<-list.files("Mergefiles_2009", pattern=".csv", recursive=TRUE, full.names=TRUE)
+
+for (h in c(1:length(fileshere))){
+	
+onefile<-read.csv(fileshere[h])	
+
+if(h==1){
+merge2009<-onefile
+} else {
+merge2009 <-rbind(merge2009, onefile)	
+}
+}
+
+# Summary statistics mergefiles 2009
+head(merge2009)
+summary(merge2009$PS_id)
+
+merge2009$uniquePS<-paste(merge2009$State_no2011, merge2009$AC_no, merge2009$PS_id, sep="_")
+PSdata2009$uniquePS<-paste(PSdata2009$State_no2011, PSdata2009$AC_no, PSdata2009$PS_id, sep="_")
+PSdata2009new$uniquePS<-paste(PSdata2009new$State_no2011, PSdata2009new$AC_no, PSdata2009new$PS_id, sep="_")
+
+sum(PSdata2009$uniquePS %in% merge2009$uniquePS)/length(PSdata2009$uniquePS) ##The percentage of PS in PS that is found in the mergefile
+
+## Merge PS-data and mergefiles and collapse to the level of census units
+dim(PSdata2009new)
+length(unique(PSdata2009new$uniquePS)) ##There should be no duplicates since Elec09 was already collapsed to PS-level
+
+dim(merge2009)
+length(unique(merge2009$uniquePS)) ##Here there should be duplicates, as a PS can match several villages and vice versa
+
+sum(!(PSdata2009new$uniquePS %in% merge2009$uniquePS)) ##Some PS are missing from the mergefile
+sum(!(merge2009$uniquePS %in% PSdata2009new$uniquePS)) ##Some PS are missing from the election data (missing ACs from raw data)
+
+Elec09<-merge(merge2009, PSdata2009new[,-c(1, 3:6)], by="uniquePS", all.x=F, all.y=F) ##Keeping only merged rows
+
+# Create Elec09$PSs -- a variable coding the number of PSs to a census unit
+Elec09$PSs<-ifelse(!is.na( Elec09$Vill_no2011), 1, NA) #Set a default of one village having one PS
+
+# Identify how many villages that a PS is shared between for villags that share a PS
+
+PSs<-Elec09$uniquePS[duplicated(Elec09$uniquePS)] #Identify duplicated PS
+PSs<-unique(PSs)
+if(length(grep("NA", PSs))>0){
+	PSs <-PSs[-grep("NA", PSs)]
+}
+
+for (i in c(1:length(PSs))){
+thecases<-Elec09[Elec09$uniquePS==PSs[i],]
+thecases<-thecases[!duplicated(thecases$Vill_no2011),]
+Elec09$PSs[Elec09$uniquePS==PSs[i]]<-1/dim(thecases)[1]
+print(i)
+}
+
+# Identify the number of PSs in villages and towns with multiple PSs
+Elec09$unique_vill <- ifelse(
+  is.na(Elec09$Vill_no2011),
+  NA_character_,
+  paste(Elec09$State_no2011, Elec09$District_no2011, Elec09$Block_no2011, Elec09$Vill_no2011, sep = "_")
+)
+vill<-Elec09$unique_vill[duplicated(Elec09$unique_vill)] #Identify duplicated villages
+vill <- unique(na.omit(vill))
+# vill<-unique(vill)
+# vill<-vill[-grep("NA",vill)]
+
+for (i in c(1:length(vill))){
+thecases<-Elec09[Elec09$unique_vill == vill[i],]
+thecases<-thecases[!duplicated(thecases$uniquePS),]
+thecases<-thecases[!is.na(thecases$uniquePS),]
+Elec09$PSs[Elec09$unique_vill ==vill[i]]<-dim(thecases)[1]
+print(i)
+}
+
+# Create census-unit level dataset -- in this case dividing votes equally between villages if there are multiple villages to a PS. This works well if one is primarily interested in using the voting data to create variables like vote shares, turnout, or effective number of parties. If actual vote shares in a village are of interest, these can be estimated by merging in the village population and weighting the votes by the population size of each village 
+# vill<-unique(Elec09$unique_vill)
+vill <- unique(Elec09$unique_vill[!is.na(Elec09$PSs)])
+vill<-vill[!is.na(Elec09$PSs)]
+
+# for (i in c(1:length(vill))){
+	
+#	if(Elec09$PSs[Elec09$unique_vill==vill[i]][1]<1){
+		
+# Elec09[Elec09$unique_vill==vill[i], c(12:57)]<-Elec09[Elec09$unique_vill==vill[i], c(12:57)]*Elec09[Elec09$unique_vill==vill[i], 58]			
+		
+# 	} else if (Elec09$PSs[Elec09$unique_vill==vill[i]][1]>1){
+
+# thecases<-Elec09[Elec09$unique_vill==unique(Elec09$unique_vill)[i],]	
+# Elec09[Elec09$unique_vill==vill[i],c(12:57)][1,]<-colSums(thecases[,c(12:57)], na.rm=T)
+
+# } 
+# print(i)
+# }
+
+for (i in c(1:length(vill))){
+  idx <- !is.na(Elec09$unique_vill) & (Elec09$unique_vill == vill[i])
+  if (is.na(Elec09$PSs[idx][1])) next
+  if (Elec09$PSs[idx][1] < 1) {
+    Elec09[idx, c(12:57)] <- Elec09[idx, c(12:57)] * Elec09[idx, 58]
+  } else if (Elec09$PSs[idx][1] > 1) {
+    thecases <- Elec09[idx, ]
+    Elec09[idx, c(12:57)][1, ] <- colSums(thecases[, c(12:57)], na.rm = TRUE)
+  }
+  print(i)
+}
+
+#Remove duplicated census entries
+Elec09_census<-Elec09[!duplicated(Elec09$unique_vill) & complete.cases(Elec09$unique_vill),]
+# Elec09_census<-Elec09_census[,-c(9,10,11)]
+
+names(Elec09_census)
+head(Elec09_census)		
+	
+summary(Elec09_census$PSs)
+prop.table(table(Elec09_census$PSs>1))
+prop.table(table(Elec09_census$PSs<1))
+prop.table(table(Elec09_census$PSs==1))
+```
+
+```{r Create tables with summary statistics 2009}
+#######Create tables with summary statistics
+mytable<-matrix(nrow=12, ncol=6)
+
+mystatename<-c("Uttarakhand", "Jharkhand", "Rajasthan", "Punjab", "Uttar Pradesh", "Madhya Pradesh", "Bihar", "Himachal Pradesh", "Gujarat", "Andhra Pradesh", "West Bengal") 
+mystatenumbers<-c("05", "20", "08", "03", "09", "23", "10", "02", "24", "28", "19")  
+
+
+for(f in c(1:length(mystatenumbers))){
+mytable[f,1]<-mystatename[f]	
+mytable[f,3]<-dim(PSdata2009[PSdata2009$State_no2011==as.numeric(mystatenumbers)[f],])[1]
+mytable[f,4]<-round(mean(PSdata2009$Votes_total[PSdata2009$State_no2011==as.numeric(mystatenumbers)[f]], na.rm=T))
+mytable[f,5]<-round(100*sum(PSdata2009$uniquePS[PSdata2009$State_no2011==as.numeric(mystatenumbers)[f]] %in% merge2009$uniquePS[merge2009$State_no2011==as.numeric(mystatenumbers)[f]])/length(PSdata2009$uniquePS[PSdata2009$State_no2011==as.numeric(mystatenumbers)[f]]),1)
+mytable[f,6]<-dim(Elec09_census[Elec09_census$State_no2011==as.numeric(mystatenumbers)[f],])[1]
+}
+
+#Adding in official number of PS by state (from General Elections 2024, Press Information Bureau)
+mytable[,2]<-c(9300, 23696, 42699, 18846, 129446, 47812, 57020, 7253, 42568, 66760, 66109, NA)
+
+mytable[order(mytable[,1]),]
+
+mytable[12,1]<-"Total"	
+mytable[12,2]<-sum(as.numeric(mytable[,2]), na.rm=T)
+mytable[12,3]<-dim(PSdata2009)[1]
+mytable[12,4]<-round(mean(PSdata2009$Votes_total, na.rm=T))
+mytable[12,5]<-round(100*sum(PSdata2009$uniquePS %in% merge2009$uniquePS)/length(PSdata2009$uniquePS), 1)
+mytable[12,6]<-dim(Elec09_census)[1]
+
+print(xtable(mytable), include.rownames=FALSE)
+```
+
+```{r Addition: Merging in economic and population census data 2009}
+### Addition: Merging in economic and population census data
+
+library(tidyverse)
+
+# Read in economic census data (2013) and join to C&J polling station data
+shrug_economy <- read_csv("~/Downloads/Lab for Globalization and Shared Prosperity/SHRUG/shrug-ec13-csv/ec13_shrid.csv") %>% 
+  mutate(
+    shrid2 = shrid2 %>% 
+      str_remove("^11-") %>% 
+      str_split("-", simplify = FALSE) %>% 
+      map_chr(~ paste0(as.integer(.x), collapse = "_"))
+  )
+
+Elec09_census_economy <- Elec09_census %>% 
+  left_join(shrug_economy, by = c("unique_vill" = "shrid2"))
+
+# Read in population census data; this currently requires two separate files, one for census towns and one for villages
+shrug_villages <- read_csv("~/Downloads/Lab for Globalization and Shared Prosperity/SHRUG/shrug-vd11-csv/pc11_vd_clean_shrid.csv") %>% 
+  mutate(
+    shrid2 = shrid2 %>% 
+      str_remove("^11-") %>% 
+      str_split("-", simplify = FALSE) %>% 
+      map_chr(~ paste0(as.integer(.x), collapse = "_"))
+  )
+
+shrug_towns <- read_csv("~/Downloads/Lab for Globalization and Shared Prosperity/SHRUG/shrug-td11-csv/pc11_td_clean_shrid.csv") %>% 
+  mutate(
+    shrid2 = shrid2 %>%
+      str_remove("^11-") %>% 
+      str_split("-", simplify = FALSE) %>% 
+      map_chr(~ paste0(as.integer(.x), collapse = "_"))
+  )
+
+Elec09_census_villages <- Elec09_census_economy %>% 
+  left_join(shrug_villages, by = c("unique_vill" = "shrid2"))
+
+Elec09_census_towns <- Elec09_census_economy %>% 
+  left_join(shrug_towns, by = c("unique_vill" = "shrid2"))
+```
+
+```{r Add migration data via imputation to the villages dataset 2009}
+### Add migration data via imputation to the villages dataset
+
+mig_files <- list.files(
+  path = "~/Downloads/Lab for Globalization and Shared Prosperity/Status Threat/Status Threat Data/Migration/Delta",
+  pattern = "_2001_2011_merged\\.csv$",
+  full.names = TRUE
+)
+
+# Select only recent migrants for now
+mig_cols <- c(
+  "2001_Total_Persons_<1",
+  "2001_Total_Persons_1-4",
+  "2011_Total_Persons_<1",
+  "2011_Total_Persons_1-4"
+)
+
+# Join migration data to J&C by district
+mig_dist_totals <- mig_files %>%
+  set_names() %>%                              
+  map_dfr(\(f) {
+    read_csv(f, show_col_types = FALSE) %>%
+      select(State, `2011_District`, Last_Residence, Enumeration_Site_Type, all_of(mig_cols)) %>%
+      filter(
+        Last_Residence == "STATES IN INDIA BEYOND THE STATE OF ENUMERATION", # For the time being, I use the general category of migrants from beyond the state of enumeration as the most likely candidates for provoking nativism
+        Enumeration_Site_Type == "RURAL"
+      ) %>%
+      group_by(State, `2011_District`) %>%
+      summarise(across(all_of(mig_cols), ~ sum(.x, na.rm = TRUE)), .groups = "drop")
+  }) %>%
+  group_by(State, `2011_District`) %>%  
+  summarise(across(all_of(mig_cols), ~ sum(.x, na.rm = TRUE)), .groups = "drop")
+
+# To impute migrant populations at the village level, calculate the village's fraction of the district population in 2011
+elec_with_weights <- Elec09_census_villages %>%
+  group_by(State_no2011, District_no2011) %>%
+  mutate(
+    district_pop = sum(pc11_vd_t_p, na.rm = TRUE),
+    pop_weight   = ifelse(is.na(pc11_vd_t_p) | district_pop <= 0, 0, pc11_vd_t_p / district_pop)
+  ) %>%
+  ungroup()
+
+# Allocate migrant populations proportionally by population (this method could use some improvement)
+Elec09_census_villages_migration <- elec_with_weights %>%
+  left_join(
+    mig_dist_totals,
+    by = c("State_no2011" = "State", "District_no2011" = "2011_District")
+  ) %>%
+  # districts with no totals get 0 (not NA)
+  replace_na(as.list(setNames(rep(0, length(mig_cols)), mig_cols))) %>%
+  mutate(
+    across(all_of(mig_cols), ~ .x * pop_weight, .names = "alloc_{.col}")
+  ) %>%
+  select(-district_pop, -pop_weight)
+
+# Calculate migration differentials from 2001 to 2011
+Elec09_census_villages_migration <- Elec09_census_villages_migration %>%
+  mutate(
+    `alloc_2001_Total_Persons_<5` = coalesce(`alloc_2001_Total_Persons_<1`, 0) +
+      coalesce(`alloc_2001_Total_Persons_1-4`, 0),
+    
+    `alloc_2011_Total_Persons_<5` = coalesce(`alloc_2011_Total_Persons_<1`, 0) +
+      coalesce(`alloc_2011_Total_Persons_1-4`, 0),
+    
+    `diff_alloc_Total_Persons_<5` = `alloc_2011_Total_Persons_<5` - `alloc_2001_Total_Persons_<5`
+  )
+```
+
+```{r Party IDs to calculate BJP vote share 2009}
+### Party IDs to calculate (change in) BJP vote share
+ex_UP_2009_candidates <- read_csv("~/Downloads/Lab for Globalization and Shared Prosperity/dataverse_files/Supplementary materials/candidate_order2009_noUP.csv") %>% 
+  filter(Cand_party == "BJP") %>% 
+  mutate(State_no2011 = case_when(
+         State_name == "Andhra Pradesh" ~ 28L,
+         State_name == "Bihar" ~ 10L,
+         State_name == "Gujarat" ~ 24L,
+         State_name == "Himachal Pradesh" ~ 2L,
+         State_name == "Jharkhand" ~ 20L,
+         State_name == "Madhya Pradesh" ~ 23L,
+         State_name == "Punjab" ~ 3L,
+         State_name == "Rajasthan" ~ 8L,
+         State_name == "Uttarakhand" ~ 5L,
+         State_name == "West Bengal" ~ 19L,
+         TRUE ~ NA_integer_
+  )
+  )
+
+UP_2009_candidates <- read_csv("~/Downloads/Lab for Globalization and Shared Prosperity/dataverse_files/Supplementary materials/candidate_order2009_UP.csv") %>% 
+  filter(Cand_party == "BJP") %>% 
+  select(1:6) %>% 
+  mutate(State_no2011 = case_when(
+    State_name == "Uttar Pradesh" ~ 9L,
+    TRUE ~ NA_integer_
+  )
+  )
+
+candidates_2009 <- bind_rows(
+  ex_UP_2009_candidates,
+  UP_2009_candidates
+)
+
+# Calculate BJP vote share in 2009
+Elec09_census_villages_migration_party <- Elec09_census_villages_migration %>% 
+  left_join(candidates_2009, by = c("State_no2011", "PC_no" = "PC_id")) %>% 
+  mutate(
+    Cand_no = as.integer(Cand_no),
+    bjp_votes = {
+      votes_cand <- as.matrix(pick(starts_with("Votes_cand")))
+      ok <- !is.na(Cand_no) & Cand_no >= 1L & Cand_no <= ncol(votes_cand)
+      out <- rep(NA_real_, n())
+      out[ok] <- votes_cand[cbind(which(ok), Cand_no[ok])]
+      out
+    },
+    
+    bjp_vote_share_2009 = if_else(!is.na(Votes_total) & Votes_total > 0,
+                             bjp_votes / Votes_total,
+                             NA_real_)
+  )
+
+# Because 2014 data lacks PC codes, use 2009's (only works if you've run both files on your device before getting to this step)
+merge_09_14_party <- Elec09_census %>% 
+  select(1, 13)
+```
+
+```{r CODE TO MERGE PS-LEVEL ELECTION DATA AND MERGEFILES WITH CENSUS INDICATORS FROM 2014}
+##CODE TO MERGE PS-LEVEL ELECTION DATA AND MERGEFILES WITH CENSUS INDICATORS FROM 2014
+#By Francesca R. Jensenius, Pradeep Chhibber, Sanjeer Alam, Pranav Gupta, and Madhavan Somanathan
+
+#Approximate runtime 117 minutes
+
+library(foreign)
+library(xtable)
+
+setwd("~/Downloads/Lab for Globalization and Shared Prosperity/dataverse_files/Data") ##Enter the directory where the data are saved
+
+#Merge PS-level data 2014
+fileshere<-list.files("PS_data2014", pattern=".csv", recursive=TRUE, full.names=TRUE)
+
+for (h in c(1:length(fileshere))){
+	
+onefile<-read.csv(fileshere[h])	
+
+if(h==1){
+PSdata2014<-onefile
+} else {
+PSdata2014 <-rbind(PSdata2014, onefile)	
+}
+}
+
+#Summary statistics PS-level data 2014
+dim(PSdata2014)
+summary(PSdata2014)
+
+#Collapse main and auxiliary booths to allow merge with mergfiles
+table(PSdata2014$PS_id)
+
+#Strip PS-numbers of spaces and letters
+PSdata2014$PS_id<-gsub(":00","", PSdata2014$PS_id)
+PSdata2014$PS_id<-gsub("\\s","", PSdata2014$PS_id)
+PSdata2014$PS_id<-gsub("\240","", PSdata2014$PS_id)
+PSdata2014$PS_id<-gsub("\200","", PSdata2014$PS_id)
+PSdata2014$PS_id<-gsub("\220","", PSdata2014$PS_id)
+PSdata2014$PS_id<-gsub("\225","", PSdata2014$PS_id)
+PSdata2014$PS_id<-gsub("[[:punct:]]","", PSdata2014$PS_id)
+PSdata2014$PS_id<-gsub("[[:alpha:]]","", PSdata2014$PS_id)
+PSdata2014$PS_id<-as.numeric(as.character(PSdata2014$PS_id))
+
+table(PSdata2014$PS_id)
+
+sum.rm.na.logical <- function(x){
+    # sums logical vector, treating NA's as 0 unless all NA the NA is returned      
+    res <- if(all(is.na(x))) NA else sum(x, na.rm=T) 
+    return(res)
+}
+
+###Collapse data 
+PSdata2014new<-aggregate(PSdata2014[,c(7:51)], by=list(PSdata2014$State_no2011, PSdata2014$PC_no, PSdata2014$PC_name, PSdata2014$AC_no, PSdata2014$AC_name, PSdata2014$PS_id), sum.rm.na.logical)
+dim(PSdata2014new)
+names(PSdata2014new)<-names(PSdata2014)
+summary(PSdata2014new)
+
+
+#Merge the 2014 mergefiles
+fileshere<-list.files("Mergefiles_2014", pattern=".csv", recursive=TRUE, full.names=TRUE)
+
+for (h in c(1:length(fileshere))){
+	
+onefile<-read.csv(fileshere[h])	
+
+if(h==1){
+merge2014<-onefile
+} else {
+merge2014 <-rbind(merge2014, onefile)	
+}
+}
+
+#Summary statistics mergefiles 2014
+dim(merge2014)
+head(merge2014)
+summary(merge2014$PS_id)
+
+merge2014$uniquePS<-paste(merge2014$State_no2011, merge2014$AC_no, merge2014$PS_id, sep="_")
+PSdata2014new$uniquePS<-paste(PSdata2014new$State_no2011, PSdata2014new$AC_no, PSdata2014new$PS_id, sep="_")
+PSdata2014$uniquePS<-paste(PSdata2014$State_no2011, PSdata2014$AC_no, PSdata2014$PS_id, sep="_")
+sum(duplicated(PSdata2014$uniquePS)) ## These are all the cases with multiple booths in one PS
+
+sum(PSdata2014$uniquePS %in% merge2014$uniquePS)/length(PSdata2014$uniquePS) ##The percentage of PS in PS that is found in the mergefile
+
+##Merge PS-data and mergefiles and collapse to the level of census units
+dim(PSdata2014new)
+length(unique(PSdata2014new$uniquePS)) ##There should be no duplicates since Elec14 was already collapsed to PS-level
+
+dim(merge2014)
+length(unique(merge2014$uniquePS)) ##Here there should be duplicates, as a PS can match several villages and vice versa
+
+sum(!(PSdata2014new$uniquePS %in% merge2014$uniquePS)) ##Some PS are missing from the mergefile
+sum(!(merge2014$uniquePS %in% PSdata2014new$uniquePS)) ##Some PS are missing from the election data (missing ACs from raw data)
+
+Elec14<-merge(merge2014, PSdata2014new[,-c(1:6)], by="uniquePS", all.x=F, all.y=F) ##Keep only merged rows
+
+#Create Elec14$PSs -- a variable coding the number of PSs to a census unit
+Elec14$PSs<-ifelse(!is.na( Elec14$Vill_no2011), 1, NA) #Set a default of one village having one PS
+
+#Identify how many villages that a PS is shared between for villags that share a PS
+
+PSs<-Elec14$uniquePS[duplicated(Elec14$uniquePS)] #Identify duplicated PS
+PSs<-unique(PSs)
+if(length(grep("NA", PSs))>0){
+	PSs <-PSs[-grep("NA", PSs)]
+}
+
+for (i in c(1:length(PSs))){
+thecases<-Elec14[Elec14$uniquePS==PSs[i],]
+thecases<-thecases[!duplicated(thecases$Vill_no2011),]
+Elec14$PSs[Elec14$uniquePS==PSs[i]]<-1/dim(thecases)[1]
+}
+
+#Identify the number of PSs in villages and towns with multiple PSs
+Elec14$unique_vill <- ifelse(
+  is.na(Elec14$Vill_no2011),
+  NA_character_,
+  paste(Elec14$State_no2011, Elec14$District_no2011, Elec14$Block_no2011, Elec14$Vill_no2011, sep = "_")
+)
+vill<-Elec14$unique_vill[duplicated(Elec14$unique_vill)] #Identify duplicated villages
+vill <- unique(na.omit(vill))
+# vill<-unique(vill)
+# vill<-vill[-grep("NA",vill)]
+
+for (i in c(1:length(vill))){
+  thecases<-Elec14[Elec14$unique_vill == vill[i],]
+  thecases<-thecases[!duplicated(thecases$uniquePS),]
+  thecases<-thecases[!is.na(thecases$uniquePS),]
+  Elec14$PSs[Elec14$unique_vill ==vill[i]]<-dim(thecases)[1]
+  print(i)
+}
+
+#Create census-unit level dataset -- in this case dividing votes equally between villages if there are multiple villages to a PS. This works well if one is primarily interested in using the voting data to create variables like vote shares, turnout, or effective number of parties. If actual vote shares in a village are of interest, these can be estimated by merging in the village population and weighting the votes by the population size of each village 
+# vill<-unique(Elec14$unique_vill)
+vill <- unique(Elec14$unique_vill[!is.na(Elec14$PSs)])
+vill<-vill[!is.na(Elec14$PSs)]
+
+# for (i in c(1:length(vill))){
+
+#	if(Elec14$PSs[Elec14$unique_vill==vill[i]][1]<1){
+
+# Elec14[Elec14$unique_vill==vill[i], c(12:57)]<-Elec14[Elec14$unique_vill==vill[i], c(12:57)]*Elec14[Elec14$unique_vill==vill[i], 58]			
+
+# 	} else if (Elec14$PSs[Elec14$unique_vill==vill[i]][1]>1){
+
+# thecases<-Elec14[Elec14$unique_vill==unique(Elec14$unique_vill)[i],]	
+# Elec14[Elec14$unique_vill==vill[i],c(12:57)][1,]<-colSums(thecases[,c(12:57)], na.rm=T)
+
+# } 
+# print(i)
+# }
+
+for (i in c(1:length(vill))){
+  idx <- !is.na(Elec14$unique_vill) & (Elec14$unique_vill == vill[i])  # <-- key line
+  if (is.na(Elec14$PSs[idx][1])) next
+  if (Elec14$PSs[idx][1] < 1) {
+    Elec14[idx, c(12:57)] <- Elec14[idx, c(12:57)] * Elec14[idx, 58]
+  } else if (Elec14$PSs[idx][1] > 1) {
+    thecases <- Elec14[idx, ]  # <-- also simplify/fix this
+    Elec14[idx, c(12:57)][1, ] <- colSums(thecases[, c(12:57)], na.rm = TRUE)
+  }
+  print(i)
+}
+
+
+#Remove duplicated census entries
+Elec14_census<-Elec14[!duplicated(Elec14$unique_vill) & complete.cases(Elec14$unique_vill),]
+# Elec14_census<-Elec14_census[,-c(9,10,11)]
+
+names(Elec14_census)
+head(Elec14_census)		
+	
+summary(Elec14_census$PSs)
+prop.table(table(Elec14_census$PSs>1))
+prop.table(table(Elec14_census$PSs<1))
+prop.table(table(Elec14_census$PSs==1))
+```
+
+```{r Create tables with summary statistics}
+#######Create tables with summary statistics
+mytable<-matrix(nrow=12, ncol=6)
+
+mystatename<-c("Uttarakhand", "Jharkhand", "Rajasthan", "Punjab", "Uttar Pradesh", "Madhya Pradesh", "Bihar", "Himachal Pradesh", "Gujarat", "Andhra Pradesh", "West Bengal") 
+mystatenumbers<-c("05", "20", "08", "03", "09", "23", "10", "02", "24", "28", "19")  
+
+
+for(f in c(1:length(mystatenumbers))){
+mytable[f,1]<-mystatename[f]	
+mytable[f,3]<-dim(PSdata2014[PSdata2014$State_no2011==as.numeric(mystatenumbers)[f],])[1]
+mytable[f,4]<-round(mean(PSdata2014$Votes_total[PSdata2014$State_no2011==as.numeric(mystatenumbers)[f]], na.rm=T))
+mytable[f,5]<-round(100*sum(PSdata2014$uniquePS[PSdata2014$State_no2011==as.numeric(mystatenumbers)[f]] %in% merge2014$uniquePS[merge2014$State_no2011==as.numeric(mystatenumbers)[f]])/length(PSdata2014$uniquePS[PSdata2014$State_no2011==as.numeric(mystatenumbers)[f]]),1)
+mytable[f,6]<-dim(Elec14_census[Elec14_census$State_no2011==as.numeric(mystatenumbers)[f],])[1]
+}
+
+#Adding in official number of PS by state (from General Elections 2024, Press Information Bureau)
+mytable[,2]<-c(10078, 24751, 47947, 22019, 140485, 54844, 61721, 7385, 45383, 71225, 77252, NA)
+
+mytable[order(mytable[,1]),]
+
+mytable[12,1]<-"Total"	
+mytable[12,2]<-sum(as.numeric(mytable[,2]), na.rm=T)
+mytable[12,3]<-dim(PSdata2014)[1]
+mytable[12,4]<-round(mean(PSdata2014$Votes_total, na.rm=T))
+mytable[12,5]<-round(100*sum(PSdata2014$uniquePS %in% merge2014$uniquePS)/length(PSdata2014$uniquePS), 1)
+mytable[12,6]<-dim(Elec14_census)[1]
+
+print(xtable(mytable), include.rownames=FALSE)
+```
+
+```{r Party IDs to calculate BJP vote share 2014}
+# Add PC Nos.
+Elec14_census <- Elec14_census %>% 
+  left_join(merge_09_14_party, by = "uniquePS")
+
+# Merge in Party IDs
+candidates_2014 <- read_csv("~/Downloads/Lab for Globalization and Shared Prosperity/dataverse_files/Supplementary materials/candidate_order2014.csv") %>% 
+  filter(Cand_party == "BJP") %>% 
+  mutate(State_no2011 = case_when(
+    State_name == "Andhra Pradesh" ~ 28L,
+    State_name == "Bihar" ~ 10L,
+    State_name == "Gujarat" ~ 24L,
+    State_name == "Himachal Pradesh" ~ 2L,
+    State_name == "Jharkhand" ~ 20L,
+    State_name == "Madhya Pradesh" ~ 23L,
+    State_name == "Punjab" ~ 3L,
+    State_name == "Rajasthan" ~ 8L,
+    State_name == "Uttar Pradesh" ~ 9L,
+    State_name == "Uttarakhand" ~ 5L,
+    State_name == "West Bengal" ~ 19L,
+    TRUE ~ NA_integer_
+  )
+  )
+
+# Calculate BJP Vote Share
+Elec14_census_party <- Elec14_census %>% 
+  left_join(candidates_2014, by = c("State_no2011", "PC_no" = "PC_id")) %>% 
+  mutate(
+    Cand_no = as.integer(Cand_no),
+    bjp_votes = {
+      votes_cand <- as.matrix(pick(starts_with("Votes_cand")))
+      ok <- !is.na(Cand_no) & Cand_no >= 1L & Cand_no <= ncol(votes_cand)
+      out <- rep(NA_real_, n())
+      out[ok] <- votes_cand[cbind(which(ok), Cand_no[ok])]
+      out
+    },
+    
+    bjp_vote_share_2014 = if_else(!is.na(Votes_total) & Votes_total > 0,
+                             bjp_votes / Votes_total,
+                             NA_real_)
+  )
+
+```
+
+```{r Merge 2009 and 2014 data}
+Elec09_14_census_villages_migration_party <- Elec09_census_villages_migration_party %>% 
+  select(1, 492, 499) %>% 
+  left_join(Elec14_census_party, by = "uniquePS")
+
+Elec09_14_census_villages_migration_party <- Elec09_14_census_villages_migration_party %>% 
+  mutate(
+    bjp_vote_delta = ifelse(
+      is.na(bjp_vote_share_2009) | is.na(bjp_vote_share_2014) | bjp_vote_share_2009 <= 0,
+      NA_real_,
+      (bjp_vote_share_2014 - bjp_vote_share_2009) / bjp_vote_share_2009
+    )
+  )
+
+summary(lm(bjp_vote_delta ~ `diff_alloc_Total_Persons_<5`,
+           data = Elec09_14_census_villages_migration_party %>%
+             filter(is.finite(bjp_vote_delta), is.finite(`diff_alloc_Total_Persons_<5`))))
+```
+
+```{r Punjab State-Level Government Employment}
+PJ_state_employment <- read.csv("~/Downloads/Lab for Globalization and Shared Prosperity/Status Threat/punjabGovtEmployees_0.csv") %>% 
+  rename_with(~ paste0("st_", .x), .cols = -1)
+
+PJ_Elec09_14_census_villages_migration_party <- Elec09_14_census_villages_migration_party %>% 
+  filter(State_no2011 == 3L) %>% 
+  left_join(PJ_state_employment, by = c("District" = "District"))
+```
+
+```{r Lokniti}
+library(haven)
+
+nes_2009 <- read_sav("~/Downloads/Lab for Globalization and Shared Prosperity/Status Threat/Status Threat Data/Daevan Mangalmurti - NES 2009 Postpoll data file.sav")
+nes_2014 <- read_sav("~/Downloads/Lab for Globalization and Shared Prosperity/Status Threat/Status Threat Data/Daevan Mangalmurti All India NES 2014 Postpoll data file.sav")
+
+recode_nes_state_id <- function(x) {
+  case_when(
+    x == 1  ~ 28L,  # Andhra Pradesh
+    x == 4  ~ 10L,  # Bihar
+    x == 6  ~ 24L,  # Gujarat
+    x == 8  ~ 2L,   # Himachal Pradesh
+    x == 33 ~ 20L,  # Jharkhand
+    x == 12 ~ 23L,  # Madhya Pradesh
+    x == 19 ~ 3L,   # Punjab
+    x == 20 ~ 8L,   # Rajasthan
+    x == 24 ~ 9L,   # Uttar Pradesh
+    x == 25 ~ 19L,  # West Bengal
+    x == 35 ~ 5L,   # Uttaranchal -> Uttarakhand
+    TRUE ~ NA_integer_
+  )
+}
+
+nes_2009 <- nes_2009 %>%
+  mutate(State_no2011 = recode_nes_state_id(as.numeric(st_id))) %>% 
+  filter(!is.na(State_no2011))
+
+nes_2014 <- nes_2014 %>%
+  mutate(State_no2011 = recode_nes_state_id(as.numeric(state_id))) %>% 
+  filter(!is.na(State_no2011))
+
+# Need to start by grouping by PS/AC/State
+# Need to merge in NES by State, AC, PS --> probably makes sense to do separately for each year
+# Need to figure out how to compute ideological scores
+# Need to figure out which political party people feel close to, which they reject, and which they voted for
+
+```
+

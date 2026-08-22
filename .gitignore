@@ -1,1 +1,76 @@
-.Rproj.user
+# ------------------------------------------------------------
+# R / RStudio local state
+# ------------------------------------------------------------
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj.user
+
+# ------------------------------------------------------------
+# macOS / editor artifacts
+# ------------------------------------------------------------
+.DS_Store
+**/.DS_Store
+*~
+*.swp
+*.swo
+
+# ------------------------------------------------------------
+# Raw and derived research data
+# Data are preserved outside Git and in frozen project snapshots.
+# ------------------------------------------------------------
+/data/
+/dataverse_files/
+
+# ------------------------------------------------------------
+# Legacy external project/data tree
+# Current WVS/EVS analysis code should live in the main source tree.
+# ------------------------------------------------------------
+/Status Threat/
+
+# ------------------------------------------------------------
+# Generated outputs and logs
+# ------------------------------------------------------------
+/logs/
+/out/
+/out_old_WVS/
+/outputs/
+
+# Current generated paper-output trees
+/data/derived/
+/Switchers_paper_output_pipeline_v1_0_5/
+
+# ------------------------------------------------------------
+# R-generated default plots
+# ------------------------------------------------------------
+/Rplot.png
+/Rplots.pdf
+/Rplot*.png
+/Rplots*.pdf
+
+# ------------------------------------------------------------
+# Archives / temporary bundles
+# ------------------------------------------------------------
+*.zip
+*.tar
+*.tar.gz
+
+# ------------------------------------------------------------
+# Large generated model/data formats outside ignored directories
+# ------------------------------------------------------------
+*.rds
+*.RDS
+
+# ------------------------------------------------------------
+# Python/cache artifacts, if created later
+# ------------------------------------------------------------
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# ------------------------------------------------------------
+# Downloaded reference documents
+# ------------------------------------------------------------
+/F00007941-WV5_Results_By_Country_v20180912.pdf
+/F00007942-WV6_Results_By_Country_v20180912.pdf
