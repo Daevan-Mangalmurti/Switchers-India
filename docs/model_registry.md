@@ -286,17 +286,24 @@ constituencies with a larger pre-existing centrist electorate.
 
 FDI x 2001 Muslim share x constituency centrist share.
 
-### Centrist-context timing
+### Centrist-context measure
 
-Use the pre-treatment/baseline centrist measure from 2009.
+Use the pre-treatment/baseline 2009 survey-weighted share of Center respondents
+among ideology-complete NES respondents:
 
-### Reliability
+`nes_weighted_share_center_among_ideology_complete_2009`
 
-A minimum baseline NES respondent count is required for constituency-level
-centrist-share measures.
+Survey weights are appropriate here because this variable estimates
+constituency-level ideological composition. This does not imply survey weighting
+of the primary individual-level multilevel model.
 
-The exact centrist-share denominator/variable must be selected and frozen before
-the final script is designated canonical.
+Use all constituencies for which this measure is estimable. Do not impose an
+arbitrary minimum respondent-count threshold in the canonical specification.
+
+Retain `nes_n_ideology_complete_2009` as a measurement-support diagnostic and
+report the distribution of the number of ideology-complete 2009 NES respondents
+underlying the constituency-level centrist-share estimates. Sample-size
+restrictions may be examined as appendix sensitivity analyses if useful.
 
 ### Status
 
@@ -529,12 +536,10 @@ declared final:
 1. Exact persisted variable name and construction for the primary 2014
    constituency centrist-BJP outcome.
 2. Exact primary AC-level clustering unit.
-3. Exact 2009 constituency centrist-share variable/denominator for the
-   contextual triple-interaction robustness.
-4. Final individual-level voter control set.
-5. Exact date-boundary implementation for the election-window FDI variables,
+3. Final individual-level voter control set.
+4. Exact date-boundary implementation for the election-window FDI variables,
    verified against the paper wording.
-6. Final paper/appendix placement of the retained specification-curve families.
+5. Final paper/appendix placement of the retained specification-curve families.
 
 These unresolved items should be resolved explicitly rather than inherited from
 legacy scripts.
