@@ -404,8 +404,8 @@ moderator.
 Plot:
 
 - x-axis: FDI exposure
-- y-axis: estimated change in BJP support associated with a 10-percentage-point
-  increase in Muslim population share
+- y-axis: estimated change in BJP support, in percentage points, associated
+  with a 1-percentage-point increase in Muslim population share
 - 95% confidence interval
 
 ### Support display
