@@ -42,6 +42,7 @@ build_project_paths <- function(project_root) {
     nes_2014 = file.path(data_dir, "lokniti", "nes_2014.sav"),
 
     ac_population = file.path(data_dir, "shrug", "con08_pop_area_key.csv"),
+    ac_population_2011 = file.path(data_dir, "shrug", "pc11_pca_clean_con08.dta"),
 
     secc_rural_ac08 = file.path(
       data_dir, "shrug", "secc_rural_con08.dta"

@@ -15,7 +15,7 @@ paths <- build_project_paths(project_root)
 create_output_directories(paths)
 
 purrr::walk(
-  c("geography.R", "elections.R", "fdi.R", "census.R", "secc.R", "nes.R"),
+  c("geography.R", "elections.R", "fdi.R", "population_2011.R", "census.R", "secc.R", "nes.R"),
   ~ source(file.path(paths$r_dir, .x))
 )
 
@@ -462,7 +462,8 @@ infer_source_file <- function(variable) {
     stringr::str_detect(variable, "^sc_.*education|sc_.*higher|sc_.*graduate") ~ "data/pop/sc_education_2001/ and sc_education_2011/ (Census C-08SC)",
     stringr::str_detect(variable, "^st_.*education|st_.*higher|st_.*graduate") ~ "data/pop/st_education_2001/ and st_education_2011/ (Census C-08ST)",
     stringr::str_detect(variable, "employment") ~ "data/shrug/ec13_pc11dist.csv",
-    stringr::str_detect(variable, "proxy_ac_pop|land_area|pop_density") ~ "data/shrug/con08_pop_area_key.csv and 2011 Census population tables",
+    stringr::str_detect(variable, "^proxy_ac_pop$|^ac_population_2011|^sc_population_ac$|^st_population_ac$|^sc_pop_share$|^st_pop_share$|pop_density") ~ "data/shrug/pc11_pca_clean_con08.dta with 2011 Census district/state fallback tables",
+    stringr::str_detect(variable, "land_area") ~ "data/shrug/con08_pop_area_key.csv",
     stringr::str_detect(variable, "voter_ideology|voted_|close_|never_vote|education_|income_|caste_|religion_|survey_weight") ~ "data/lokniti/nes_2009.sav and nes_2014.sav",
     TRUE ~ NA_character_
   )

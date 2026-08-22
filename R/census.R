@@ -111,7 +111,11 @@ build_population_demographics <- function(paths, dirs, geography) {
   message("Building population, employment, and SC/ST controls")
   
   purrr::walk(
-    c(paths$ac_population, paths$economic_census),
+    c(
+      paths$ac_population,
+      paths$ac_population_2011,
+      paths$economic_census
+    ),
     assert_file_exists
   )
   purrr::walk(
@@ -119,15 +123,37 @@ build_population_demographics <- function(paths, dirs, geography) {
     assert_directory_exists
   )
   
-  ac_population <- readr::read_csv(paths$ac_population, show_col_types = FALSE) |>
+  ac_land_area <- readr::read_csv(
+    paths$ac_population,
+    show_col_types = FALSE
+  ) |>
     dplyr::transmute(
-      state_no = as.integer(stringr::str_match(ac08_id, "^\\d{4}-(\\d{2})-\\d{3}$")[, 2]),
-      ac = as.integer(stringr::str_extract(ac08_id, "\\d{3}$")),
-      con08_pop = clean_num(con08_pc01_pca_tot_p),
-      con08_land_area = clean_num(con08_land_area)
+      state_no = as.integer(
+        stringr::str_match(
+          ac08_id,
+          "^\\d{4}-(\\d{2})-\\d{3}$"
+        )[, 2]
+      ),
+      ac = as.integer(
+        stringr::str_extract(
+          ac08_id,
+          "\\d{3}$"
+        )
+      ),
+      con08_land_area =
+        clean_num(
+          con08_land_area
+        )
     ) |>
-    dplyr::distinct(state_no, ac, .keep_all = TRUE)
-  
+    dplyr::distinct(
+      state_no,
+      ac,
+      .keep_all = TRUE
+    )
+
+  pca11_ac <-
+    read_pc11_pca_ac08(paths)
+
   district_pop <- read_many_excel(
     paths$population_change_dir,
     "\\.xlsx?$",
@@ -141,57 +167,105 @@ build_population_demographics <- function(paths, dirs, geography) {
     ) |>
     dplyr::distinct(state_no, district_code_2011, .keep_all = TRUE)
   
-  allocation <- geography$ac_reference_sf |>
-    dplyr::left_join(ac_population, by = c("state_no", "ac"), relationship = "one-to-one") |>
-    dplyr::left_join(district_pop, by = c("state_no", "district_code_2011"), relationship = "many-to-one") |>
+  state_pop <- read_many_excel(
+    paths$population_change_dir,
+    "\\.xlsx?$",
+    read_2011_state_population
+  ) |>
+    dplyr::distinct(
+      state_no,
+      .keep_all = TRUE
+    )
+
+  geometry_land_area <-
+    geography$ac_reference_sf |>
     dplyr::mutate(
-      geom_land_area = as.numeric(sf::st_area(sf::st_transform(geometry, 6933))) / 1e6,
-      con08_land_area = dplyr::coalesce(con08_land_area, geom_land_area),
-      allocation_group = dplyr::coalesce(
-        as.character(district_code_2011),
-        paste0("UNMATCHED_", ac_uid)
-      )
+      geom_land_area =
+        as.numeric(
+          sf::st_area(
+            sf::st_transform(
+              geometry,
+              6933
+            )
+          )
+        ) / 1e6
     ) |>
-    dplyr::group_by(state_no, allocation_group) |>
-    dplyr::mutate(
-      n_ac_in_district = dplyr::n(),
-      direct_available = !is.na(con08_pop) & con08_pop > 0,
-      n_direct = sum(direct_available),
-      n_missing_direct = sum(!direct_available),
-      direct_sum = sum(con08_pop[direct_available], na.rm = TRUE),
-      direct_inconsistent = !is.na(district_pop_2011) & direct_sum > 1.05 * district_pop_2011,
-      remaining_population = dplyr::if_else(
-        !is.na(district_pop_2011),
-        pmax(district_pop_2011 - direct_sum, 0),
-        NA_real_
-      ),
-      proxy_ac_pop = dplyr::case_when(
-        direct_inconsistent & !is.na(district_pop_2011) ~ district_pop_2011 / n_ac_in_district,
-        direct_available ~ con08_pop,
-        !is.na(district_pop_2011) & n_direct == 0 ~ district_pop_2011 / n_ac_in_district,
-        !is.na(district_pop_2011) & n_direct > 0 & n_missing_direct > 0 ~ remaining_population / n_missing_direct,
-        TRUE ~ NA_real_
-      ),
-      proxy_ac_pop_source = dplyr::case_when(
-        direct_inconsistent & !is.na(district_pop_2011) ~ "equal_allocation_inconsistent_direct_population",
-        direct_available ~ "direct_ac_population",
-        !is.na(district_pop_2011) & n_direct == 0 ~ "equal_allocation_no_direct_population",
-        !is.na(district_pop_2011) & n_direct > 0 & n_missing_direct > 0 ~ "remaining_population_equal_allocation",
-        TRUE ~ "missing"
-      ),
-      proxy_sum = sum(proxy_ac_pop, na.rm = TRUE),
-      all_proxy_available = all(!is.na(proxy_ac_pop)),
-      ac_alloc_share = dplyr::if_else(all_proxy_available & proxy_sum > 0, proxy_ac_pop / proxy_sum, NA_real_)
-    ) |>
-    dplyr::ungroup() |>
     sf::st_drop_geometry() |>
     dplyr::select(
-      state, state_no, pc, ac, ac_uid, district_code_2011, district_name_2011,
-      district_harmonization_group_id, proxy_ac_pop, proxy_ac_pop_source,
-      con08_land_area, ac_alloc_share, n_ac_in_district, direct_sum,
-      direct_inconsistent
+      state_no,
+      ac,
+      geom_land_area
+    ) |>
+    dplyr::distinct(
+      state_no,
+      ac,
+      .keep_all = TRUE
     )
-  
+
+  population_reference <-
+    dplyr::bind_rows(
+      geography$ac_reference,
+
+      geography$ac_reference_sf |>
+        sf::st_drop_geometry() |>
+        dplyr::select(
+          dplyr::any_of(
+            names(
+              geography$ac_reference
+            )
+          )
+        )
+    ) |>
+    dplyr::distinct(
+      state_no,
+      ac,
+      .keep_all = TRUE
+    ) |>
+    dplyr::left_join(
+      state_lookup |>
+        dplyr::select(
+          state_no,
+          state_lookup = state
+        ),
+      by = "state_no",
+      relationship = "many-to-one"
+    ) |>
+    dplyr::mutate(
+      state =
+        dplyr::coalesce(
+          state,
+          state_lookup
+        ),
+
+      ac_uid =
+        dplyr::coalesce(
+          ac_uid,
+          make_ac_uid(
+            state_no,
+            ac
+          )
+        )
+    ) |>
+    dplyr::select(
+      -state_lookup
+    )
+
+  assert_unique_rows(
+    population_reference,
+    c("state_no", "ac"),
+    "population allocation AC universe"
+  )
+
+  allocation <-
+    build_2011_population_allocation(
+      population_reference,
+      geometry_land_area,
+      pca11_ac,
+      ac_land_area,
+      district_pop,
+      state_pop
+    )
+
   allocation_diagnostics <- allocation |>
     dplyr::filter(!is.na(district_code_2011)) |>
     dplyr::summarise(
@@ -245,10 +319,81 @@ build_population_demographics <- function(paths, dirs, geography) {
     dplyr::rename(st_population_district = population) |>
     dplyr::distinct(state_no, district_code_2011, .keep_all = TRUE)
   
-  sc_ac <- allocate_district_counts(sc_district, allocation, "sc_population_district") |>
-    dplyr::rename(sc_population_ac = sc_population_district_ac)
-  st_ac <- allocate_district_counts(st_district, allocation, "st_population_district") |>
-    dplyr::rename(st_population_ac = st_population_district_ac)
+  sc_state <- read_many_excel(
+    paths$sc_population_dir,
+    "-PCA-A10-APPENDIX\\.xlsx$",
+    read_2011_state_group_population,
+    group = "sc"
+  ) |>
+    dplyr::rename(
+      sc_population_state =
+        population
+    ) |>
+    dplyr::distinct(
+      state_no,
+      .keep_all = TRUE
+    )
+
+  st_state <- read_many_excel(
+    paths$st_population_dir,
+    "-PCA-A11-APPENDIX\\.xlsx$",
+    read_2011_state_group_population,
+    group = "st"
+  ) |>
+    dplyr::rename(
+      st_population_state =
+        population
+    ) |>
+    dplyr::distinct(
+      state_no,
+      .keep_all = TRUE
+    )
+
+  zero_st_states <- c(
+    3L, 6L, 7L, 34L
+  )
+
+  zero_sc_states <- c(
+    12L, 13L
+  )
+
+  sc_ac <-
+    impute_2011_group_population(
+      allocation = allocation,
+      district_data = sc_district,
+      state_data = sc_state,
+      direct_column =
+        "sc_population_2011_direct",
+      district_column =
+        "sc_population_district",
+      state_column =
+        "sc_population_state",
+      output_column =
+        "sc_population_ac",
+      source_column =
+        "sc_population_source",
+      structural_zero_states =
+        zero_sc_states
+    )
+
+  st_ac <-
+    impute_2011_group_population(
+      allocation = allocation,
+      district_data = st_district,
+      state_data = st_state,
+      direct_column =
+        "st_population_2011_direct",
+      district_column =
+        "st_population_district",
+      state_column =
+        "st_population_state",
+      output_column =
+        "st_population_ac",
+      source_column =
+        "st_population_source",
+      structural_zero_states =
+        zero_st_states
+    )
   
   # C-13 is optional because it is not currently in the pasted directory tree.
   age_available <- dir.exists(paths$age_2011_dir) &&
@@ -284,13 +429,11 @@ build_population_demographics <- function(paths, dirs, geography) {
       )
   }
   
-  zero_st_states <- c(3L, 6L, 7L, 34L)
-  zero_sc_states <- c(12L, 13L)
-  
   demographics <- allocation |>
     dplyr::select(
       state, state_no, pc, ac, ac_uid, district_code_2011,
       district_name_2011, district_harmonization_group_id,
+      ac_population_2011_direct,
       proxy_ac_pop, proxy_ac_pop_source, con08_land_area
     ) |>
     dplyr::left_join(employment_ac |>
@@ -359,10 +502,128 @@ build_population_demographics <- function(paths, dirs, geography) {
       passed = is.na(source_total) | abs(difference) < 1e-6
     )
   
+  population_2011_source_diagnostics <-
+    dplyr::bind_rows(
+      allocation |>
+        dplyr::count(
+          proxy_ac_pop_source,
+          name = "n_ac"
+        ) |>
+        dplyr::transmute(
+          measure =
+            "2011 total population",
+          source =
+            proxy_ac_pop_source,
+          n_ac
+        ),
+
+      sc_ac |>
+        dplyr::count(
+          sc_population_source,
+          name = "n_ac"
+        ) |>
+        dplyr::transmute(
+          measure =
+            "2011 SC population",
+          source =
+            sc_population_source,
+          n_ac
+        ),
+
+      st_ac |>
+        dplyr::count(
+          st_population_source,
+          name = "n_ac"
+        ) |>
+        dplyr::transmute(
+          measure =
+            "2011 ST population",
+          source =
+            st_population_source,
+          n_ac
+        )
+    )
+
+  population_2011_validity_diagnostics <-
+    tibble::tibble(
+      check = c(
+        "No nonpositive final AC population",
+        "SC population between zero and total population",
+        "ST population between zero and total population"
+      ),
+      n_failed = c(
+        sum(
+          !is.na(
+            demographics$proxy_ac_pop
+          ) &
+          demographics$proxy_ac_pop <= 0
+        ),
+
+        sum(
+          !is.na(
+            demographics$sc_population_ac
+          ) &
+          !is.na(
+            demographics$proxy_ac_pop
+          ) &
+          (
+            demographics$sc_population_ac < 0 |
+            demographics$sc_population_ac >
+              demographics$proxy_ac_pop
+          )
+        ),
+
+        sum(
+          !is.na(
+            demographics$st_population_ac
+          ) &
+          !is.na(
+            demographics$proxy_ac_pop
+          ) &
+          (
+            demographics$st_population_ac < 0 |
+            demographics$st_population_ac >
+              demographics$proxy_ac_pop
+          )
+        )
+      )
+    ) |>
+    dplyr::mutate(
+      passed =
+        n_failed == 0
+    )
+
+  if (any(
+    !population_2011_validity_diagnostics$passed
+  )) {
+    print(
+      population_2011_validity_diagnostics,
+      n = Inf
+    )
+
+    stop(
+      "2011 population/SC/ST validity checks failed."
+    )
+  }
+
   write_csv_checked(allocation, file.path(dirs$intermediate_dir, "ac_allocation_weights.csv"), c("state_no", "ac"))
   write_csv_checked(demographics, file.path(dirs$intermediate_dir, "demographics_ac.csv"), c("state_no", "ac"))
   write_csv_checked(allocation_diagnostics, file.path(dirs$diagnostic_dir, "allocation_share_diagnostics.csv"))
   write_csv_checked(population_allocation_diagnostics, file.path(dirs$diagnostic_dir, "population_allocation_diagnostics.csv"))
+  write_csv_checked(
+    population_2011_source_diagnostics,
+    file.path(
+      dirs$diagnostic_dir,
+      "population_2011_source_diagnostics.csv"
+    )
+  )
+  write_csv_checked(
+    population_2011_validity_diagnostics,
+    file.path(
+      dirs$diagnostic_dir,
+      "population_2011_validity_diagnostics.csv"
+    )
+  )
   write_csv_checked(
     tibble::tibble(
       check = "C-13 working-age source available",

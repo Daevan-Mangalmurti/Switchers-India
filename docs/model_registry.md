@@ -86,6 +86,98 @@ Appendix/specification-curve robustness may include:
 
 Migration is not a co-equal headline moderator.
 
+## 3A. 2011 AC population, SC, and ST construction
+
+### Analysis geography
+
+Population, Scheduled Caste population, and Scheduled Tribe population are
+defined on post-2008-delimitation assembly-constituency boundaries.
+
+### Preferred direct source
+
+The canonical direct source is SHRUG's 2011 Population Census Abstract
+aggregated to AC08 geography:
+
+`data/shrug/pc11_pca_clean_con08.dta`
+
+The exact input is checksum-pinned in:
+
+`config/population_2011_source_manifest.csv`
+
+Use the following direct values whenever observed:
+
+- `pc11_pca_tot_p`: total 2011 Census population
+- `pc11_pca_p_sc`: 2011 Scheduled Caste population
+- `pc11_pca_p_st`: 2011 Scheduled Tribe population
+
+Direct AC08 values are retained rather than replaced merely to force
+reconciliation with district totals.
+
+### Population imputation
+
+When direct 2011 AC population is unavailable, imputation uses 2011 information
+only.
+
+Imputation arithmetic is performed over the union of the project's full
+post-2008 AC reference and spatial AC reference. Polygon availability must not
+determine which AC populations are subtracted from a district total. Spatial
+support is handled separately when constructing spatial FDI exposure.
+
+Within the mapped 2011 district:
+
+1. If no AC has a direct PCA11 population, divide the 2011 district population
+   equally across the mapped ACs.
+2. If some ACs have direct PCA11 population and the remaining district
+   population is positive, divide the residual equally across ACs lacking a
+   direct value.
+3. If the district residual is nonpositive, use the 2011 district mean as an
+   explicit fallback rather than constructing zero or negative AC population.
+4. If no usable 2011 district population is available, use the official 2011
+   state mean population: the state's 2011 Census population divided by the
+   number of post-2008 ACs in the project population-reference universe.
+
+State residual population is not used as the final fallback. Geographic and
+district-crosswalk mismatches can accumulate in a state residual and make the
+remaining AC absorb reconciliation error. The state mean is therefore the
+pre-specified final 2011-only fallback.
+
+Every final value retains a source flag.
+
+### SC and ST construction
+
+Use direct PCA11 AC SC and ST counts whenever observed.
+
+For a missing direct SC or ST count, use the corresponding existing 2011 Census
+district SC/ST total.
+
+When the residual after subtracting observed direct AC counts is valid, allocate
+that residual across missing ACs in proportion to their final 2011 AC
+population.
+
+When the district residual is invalid, apply the district's 2011 SC or ST share
+to the final 2011 AC population.
+
+If no usable district SC or ST source is available, apply the official 2011
+state SC or ST share to the final 2011 AC population. State residual SC/ST
+counts are not used as the final fallback, for the same geographic-reconciliation
+reason as total population.
+
+Structural-zero states remain coded as zero where appropriate.
+
+SC and ST shares are calculated only after final counts have been constructed:
+
+`sc_pop_share = sc_population_ac / proxy_ac_pop`
+
+`st_pop_share = st_population_ac / proxy_ac_pop`
+
+### Prohibited population input
+
+`con08_pc01_pca_tot_p` is not part of the canonical population, SC, or ST
+construction.
+
+`data/shrug/con08_pop_area_key.csv` remains available for constituency land area
+and diagnostics.
+
 ## 4. FDI treatment definition
 
 ### Primary sector measure
@@ -279,10 +371,10 @@ The canonical control set should be intentionally small and pre-specified.
 
 Current retained contextual controls include:
 
-- constituency population proxy
+- 2011 constituency population using the frozen direct-plus-2011-only-imputation rule
 - land area
-- SC population share
-- ST population share
+- 2011 SC population share using the same source hierarchy
+- 2011 ST population share using the same source hierarchy
 - employment intensity
 - secondary-education share (`ed_sec_share`)
 
