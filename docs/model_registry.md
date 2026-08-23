@@ -537,15 +537,44 @@ Two-level linear probability model:
 
 ### Primary exposure
 
-Raw total local FDI per 100,000.
+Raw total local FDI per 100,000 during the April 2009-March 2014 current
+election-cycle window.
+
+### Baseline exposure
+
+Raw total local FDI per 100,000 during the April 2004-March 2009 baseline
+election-cycle window.
 
 ### Primary demographic context
 
 2001 Muslim population share.
 
-### Interaction
+### Primary interaction
 
-FDI x Muslim population share.
+Current FDI x Muslim population share.
+
+### Required baseline interaction
+
+Baseline FDI x Muslim population share.
+
+The primary voter-level exposure parameterization therefore matches the
+canonical constituency-level model:
+
+voted_bjp_ij =
+  beta1 current_FDI_j
+  + beta2 Muslim_j
+  + beta3 current_FDI_j x Muslim_j
+  + beta4 baseline_FDI_j
+  + beta5 baseline_FDI_j x Muslim_j
+  + individual controls_ij
+  + constituency controls_j
+  + state fixed effects
+  + AC random intercept_j
+  + error_ij
+
+This saturated current-plus-baseline parameterization is preferred to a
+change-only model. Algebraically it can be reparameterized as change in FDI
+plus baseline FDI without changing fitted values.
 
 ### Weighting
 
@@ -559,10 +588,34 @@ analysis.
 
 ### Controls
 
-Individual-level controls plus the canonical constituency-level controls.
+The canonical primary individual-level control set is:
 
-Final individual-control definitions must be frozen in the canonical voter
-model script.
+- `religion_group`, entered categorically
+- `caste_group`, entered categorically
+- `education_harmonized`, entered categorically
+
+These controls are included jointly. Complete-case estimation is used for
+these three variables, and the resulting respondent loss must be reported in
+the sample funnel.
+
+Household income is not included in the primary voter model because it is
+measured contemporaneously and may itself respond to local economic exposure.
+
+The canonical constituency-level controls are:
+
+- `proxy_ac_pop`
+- `sc_pop_share`
+- `st_pop_share`
+
+The expanded-control voter robustness adds both of the following jointly:
+
+- `employment_per_total_population`
+- `ed_sec_share`
+
+As in the constituency analysis, these expanded controls are not primary
+because they are measured during the 2009-2014 exposure window.
+
+Survey weights are not part of the primary multilevel estimation.
 
 ### Inference terminology
 
@@ -756,11 +809,9 @@ restriction and basic included-versus-excluded constituency characteristics.
 
 ## 18. Remaining decisions before final model freeze
 
-The following items must be resolved before the canonical model scripts are
-declared final:
+The remaining presentation decision is:
 
-1. Final individual-level voter control set.
-2. Final paper/appendix placement of the retained specification-curve families.
+1. Final paper/appendix placement of the retained specification-curve families.
 
-These unresolved items should be resolved explicitly rather than inherited from
-legacy scripts.
+The canonical individual-level voter control set is frozen in Section 9 and
+must not be inherited from legacy scripts.
