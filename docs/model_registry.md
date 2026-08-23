@@ -194,7 +194,19 @@ focal assembly constituency + all touching assembly constituencies.
 
 Raw FDI projects per 100,000 people.
 
-Zero is retained as a substantively meaningful exposure value.
+Zero is retained as a substantively meaningful exposure value only when the
+assembly constituency has usable post-2008 spatial support.
+
+`fdi_spatial_support == TRUE` means that the AC has a usable polygon and its
+own, touching-neighbor, and local FDI exposures can be measured. For such ACs,
+the absence of matched projects is a genuine zero.
+
+If an election AC lacks usable polygon support, FDI project counts, per-100,000
+measures, log-transformed measures, and any-FDI indicators are coded missing
+rather than zero.
+
+A spatially supported polygon with zero touching neighbors remains supported.
+Its adjacent exposure is zero and its local exposure equals its own-AC exposure.
 
 ### Baseline/current exposure windows
 

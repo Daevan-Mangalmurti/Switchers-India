@@ -90,7 +90,62 @@ build_fdi <- function(paths, dirs, geography, elections, demographics) {
     sf::st_transform(sf::st_crs(geography$ac_reference_sf))
 
   ac_spatial <- geography$ac_reference_sf |>
-    dplyr::select(ac_uid, state_no, ac, geometry)
+    dplyr::select(
+      ac_uid,
+      state_no,
+      ac,
+      geometry
+    )
+
+  spatial_support <- ac_spatial |>
+    sf::st_drop_geometry() |>
+    dplyr::distinct(
+      ac_uid,
+      state_no,
+      ac
+    ) |>
+    dplyr::left_join(
+      geography$ac_neighbor_pairs |>
+        dplyr::filter(
+          !is.na(ac_uid)
+        ) |>
+        dplyr::count(
+          ac_uid,
+          name = "fdi_n_touching_neighbors"
+        ),
+      by = "ac_uid",
+      relationship = "one-to-one"
+    ) |>
+    dplyr::mutate(
+      fdi_spatial_support = TRUE,
+      fdi_n_touching_neighbors =
+        dplyr::coalesce(
+          fdi_n_touching_neighbors,
+          0L
+        )
+    )
+
+  fdi_geography_lookup <- dplyr::bind_rows(
+    geography$ac_reference |>
+      dplyr::select(
+        ac_uid,
+        state_no,
+        ac
+      ),
+    spatial_support |>
+      dplyr::select(
+        ac_uid,
+        state_no,
+        ac
+      )
+  ) |>
+    dplyr::filter(
+      !is.na(ac_uid)
+    ) |>
+    dplyr::distinct(
+      ac_uid,
+      .keep_all = TRUE
+    )
 
   containing <- sf::st_join(points, ac_spatial, join = sf::st_within, left = TRUE) |>
     sf::st_drop_geometry() |>
@@ -186,7 +241,37 @@ build_fdi <- function(paths, dirs, geography, elections, demographics) {
     )
 
   full_grid <- elections$ac_year |>
-    dplyr::distinct(exposed_ac_uid = ac_uid, year) |>
+    dplyr::distinct(
+      exposed_ac_uid = ac_uid,
+      year
+    ) |>
+    dplyr::left_join(
+      spatial_support |>
+        dplyr::select(
+          exposed_ac_uid = ac_uid,
+          fdi_spatial_support,
+          fdi_n_touching_neighbors
+        ),
+      by = "exposed_ac_uid",
+      relationship = "many-to-one"
+    ) |>
+    dplyr::mutate(
+      fdi_spatial_support =
+        dplyr::coalesce(
+          fdi_spatial_support,
+          FALSE
+        ),
+
+      fdi_n_touching_neighbors =
+        dplyr::if_else(
+          fdi_spatial_support,
+          dplyr::coalesce(
+            fdi_n_touching_neighbors,
+            0L
+          ),
+          NA_integer_
+        )
+    ) |>
     tidyr::crossing(
       sector = sector_levels,
       exposure_scope = scope_levels,
@@ -194,51 +279,147 @@ build_fdi <- function(paths, dirs, geography, elections, demographics) {
     ) |>
     dplyr::left_join(
       counts_long,
-      by = c("exposed_ac_uid", "year", "sector", "exposure_scope", "status")
+      by = c(
+        "exposed_ac_uid",
+        "year",
+        "sector",
+        "exposure_scope",
+        "status"
+      )
     ) |>
-    dplyr::mutate(projects_n = tidyr::replace_na(projects_n, 0L)) |>
+    dplyr::mutate(
+      projects_n =
+        dplyr::if_else(
+          fdi_spatial_support,
+          tidyr::replace_na(
+            projects_n,
+            0L
+          ),
+          NA_integer_
+        )
+    ) |>
     dplyr::left_join(
       demographics |>
-        dplyr::select(exposed_ac_uid = ac_uid, proxy_ac_pop),
+        dplyr::select(
+          exposed_ac_uid = ac_uid,
+          proxy_ac_pop
+        ),
       by = "exposed_ac_uid",
       relationship = "many-to-one"
     ) |>
     dplyr::mutate(
-      projects_pc100k = per_100k(projects_n, proxy_ac_pop),
-      log1p_projects_pc100k = log1p(projects_pc100k),
-      stem = paste("fdi", sector, exposure_scope, status, sep = "_")
+      projects_pc100k =
+        per_100k(
+          projects_n,
+          proxy_ac_pop
+        ),
+
+      log1p_projects_pc100k =
+        log1p(
+          projects_pc100k
+        ),
+
+      stem =
+        paste(
+          "fdi",
+          sector,
+          exposure_scope,
+          status,
+          sep = "_"
+        )
     )
 
   fdi_ac_year <- full_grid |>
-    dplyr::select(exposed_ac_uid, year, stem, projects_n, projects_pc100k, log1p_projects_pc100k) |>
+    dplyr::select(
+      exposed_ac_uid,
+      year,
+      fdi_spatial_support,
+      fdi_n_touching_neighbors,
+      stem,
+      projects_n,
+      projects_pc100k,
+      log1p_projects_pc100k
+    ) |>
     tidyr::pivot_wider(
       names_from = stem,
-      values_from = c(projects_n, projects_pc100k, log1p_projects_pc100k),
-      names_glue = "{stem}_{.value}"
+      values_from = c(
+        projects_n,
+        projects_pc100k,
+        log1p_projects_pc100k
+      ),
+      names_glue =
+        "{stem}_{.value}"
     ) |>
-    dplyr::rename_with(~ stringr::str_replace(.x, "_projects_n$", "_n")) |>
-    dplyr::rename_with(~ stringr::str_replace(.x, "_projects_pc100k$", "_pc100k")) |>
-    dplyr::rename_with(~ stringr::str_replace(.x, "_log1p_projects_pc100k$", "_log1p_pc100k")) |>
-    # Restore the approved prefix order: log1p_fdi_...
     dplyr::rename_with(
-      ~ stringr::str_replace(.x, "^(fdi_.+)_log1p_pc100k$", "log1p_\\1_pc100k")
+      ~ stringr::str_replace(
+        .x,
+        "_projects_n$",
+        "_n"
+      )
+    ) |>
+    dplyr::rename_with(
+      ~ stringr::str_replace(
+        .x,
+        "_projects_pc100k$",
+        "_pc100k"
+      )
+    ) |>
+    dplyr::rename_with(
+      ~ stringr::str_replace(
+        .x,
+        "_log1p_projects_pc100k$",
+        "_log1p_pc100k"
+      )
+    ) |>
+    dplyr::rename_with(
+      ~ stringr::str_replace(
+        .x,
+        "^(fdi_.+)_log1p_pc100k$",
+        "log1p_\\1_pc100k"
+      )
     ) |>
     dplyr::mutate(
       any_fdi_total_own_all =
-        as.integer(fdi_total_own_all_n > 0),
+        dplyr::if_else(
+          fdi_spatial_support,
+          as.integer(
+            fdi_total_own_all_n > 0
+          ),
+          NA_integer_
+        ),
+
       any_fdi_total_adjacent_all =
-        as.integer(fdi_total_adjacent_all_n > 0),
+        dplyr::if_else(
+          fdi_spatial_support,
+          as.integer(
+            fdi_total_adjacent_all_n > 0
+          ),
+          NA_integer_
+        ),
+
       any_fdi_total_local_all =
-        as.integer(fdi_total_local_all_n > 0)
+        dplyr::if_else(
+          fdi_spatial_support,
+          as.integer(
+            fdi_total_local_all_n > 0
+          ),
+          NA_integer_
+        )
     ) |>
-    dplyr::rename(ac_uid = exposed_ac_uid) |>
+    dplyr::rename(
+      ac_uid =
+        exposed_ac_uid
+    ) |>
     dplyr::left_join(
-      geography$ac_reference |>
-        dplyr::select(ac_uid, state_no, ac),
+      fdi_geography_lookup,
       by = "ac_uid",
       relationship = "many-to-one"
     ) |>
-    dplyr::arrange(state_no, ac, year)
+    dplyr::arrange(
+      state_no,
+      ac,
+      year
+    )
 
   assert_unique_rows(fdi_ac_year, c("ac_uid", "year"), "FDI AC-year data")
 
@@ -255,20 +436,130 @@ build_fdi <- function(paths, dirs, geography, elections, demographics) {
 
   exposure_diagnostics <- full_grid |>
     dplyr::summarise(
-      n_exposed_acs = sum(projects_n > 0),
-      n_zero_exposure_acs = sum(projects_n == 0),
-      pct_zero_exposure_acs = 100 * n_zero_exposure_acs / dplyr::n(),
-      mean_projects = mean(projects_n),
-      median_projects = median(projects_n),
-      max_projects = max(projects_n),
-      .by = c(year, sector, exposure_scope, status)
+      n_acs =
+        dplyr::n(),
+
+      n_spatially_supported_acs =
+        sum(
+          fdi_spatial_support
+        ),
+
+      n_spatially_unsupported_acs =
+        sum(
+          !fdi_spatial_support
+        ),
+
+      n_exposed_acs =
+        sum(
+          projects_n > 0,
+          na.rm = TRUE
+        ),
+
+      n_zero_exposure_acs =
+        sum(
+          projects_n == 0,
+          na.rm = TRUE
+        ),
+
+      pct_zero_exposure_acs =
+        dplyr::if_else(
+          n_spatially_supported_acs > 0,
+          100 *
+            n_zero_exposure_acs /
+            n_spatially_supported_acs,
+          NA_real_
+        ),
+
+      mean_projects =
+        mean(
+          projects_n,
+          na.rm = TRUE
+        ),
+
+      median_projects =
+        median(
+          projects_n,
+          na.rm = TRUE
+        ),
+
+      max_projects =
+        max(
+          projects_n,
+          na.rm = TRUE
+        ),
+
+      .by = c(
+        year,
+        sector,
+        exposure_scope,
+        status
+      )
+    )
+
+  spatial_support_diagnostics <- elections$ac_year |>
+    dplyr::distinct(
+      ac_uid,
+      year
+    ) |>
+    dplyr::left_join(
+      spatial_support |>
+        dplyr::select(
+          ac_uid,
+          fdi_spatial_support,
+          fdi_n_touching_neighbors
+        ),
+      by = "ac_uid",
+      relationship = "many-to-one"
+    ) |>
+    dplyr::mutate(
+      fdi_spatial_support =
+        dplyr::coalesce(
+          fdi_spatial_support,
+          FALSE
+        )
+    ) |>
+    dplyr::summarise(
+      n_election_acs =
+        dplyr::n(),
+
+      n_spatially_supported =
+        sum(
+          fdi_spatial_support
+        ),
+
+      n_spatially_unsupported =
+        sum(
+          !fdi_spatial_support
+        ),
+
+      n_supported_zero_touching_neighbors =
+        sum(
+          fdi_spatial_support &
+            fdi_n_touching_neighbors == 0,
+          na.rm = TRUE
+        ),
+
+      .by = year
     )
 
   write_csv_checked(projects, file.path(dirs$intermediate_dir, "fdi_projects_clean.csv"), "fdi_project_uid")
   write_csv_checked(exposure, file.path(dirs$intermediate_dir, "fdi_project_exposure.csv"), c("fdi_project_uid", "exposed_ac_uid", "exposure_scope"))
   write_csv_checked(fdi_ac_year, file.path(dirs$intermediate_dir, "fdi_ac_year.csv"), c("ac_uid", "year"))
   write_csv_checked(project_diagnostics, file.path(dirs$diagnostic_dir, "fdi_project_diagnostics.csv"))
-  write_csv_checked(exposure_diagnostics, file.path(dirs$diagnostic_dir, "fdi_exposure_diagnostics.csv"))
+  write_csv_checked(
+    exposure_diagnostics,
+    file.path(
+      dirs$diagnostic_dir,
+      "fdi_exposure_diagnostics.csv"
+    )
+  )
+  write_csv_checked(
+    spatial_support_diagnostics,
+    file.path(
+      dirs$diagnostic_dir,
+      "fdi_spatial_support_diagnostics.csv"
+    )
+  )
   readr::write_csv(sector_key, file.path(dirs$final_dir, "fdi_sector_taxonomy.csv"))
   readr::write_csv(status_key, file.path(dirs$final_dir, "fdi_status_taxonomy.csv"))
 
@@ -276,6 +567,10 @@ build_fdi <- function(paths, dirs, geography, elections, demographics) {
     projects = projects,
     exposure = exposure,
     ac_year = fdi_ac_year,
-    diagnostics = list(projects = project_diagnostics, exposure = exposure_diagnostics)
+    diagnostics = list(
+      projects = project_diagnostics,
+      exposure = exposure_diagnostics,
+      spatial_support = spatial_support_diagnostics
+    )
   )
 }

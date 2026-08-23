@@ -145,6 +145,7 @@ fixed_columns <- c(
   "working_age_population_15_64_ac", "employment_per_population_15plus",
   "employment_per_population_15_64", "sc_population_ac", "st_population_ac",
   "sc_pop_share", "st_pop_share",
+  "fdi_spatial_support", "fdi_n_touching_neighbors",
   "mig_total_upto_2001", "log1p_mig_total_upto_2001",
   "mig_total_upto_2001_share_ac_pop", "mig_total_upto_2001_density_sqkm",
   "log1p_mig_total_upto_2001_density_sqkm",
@@ -408,6 +409,10 @@ infer_role <- function(variable) {
   dplyr::case_when(
     stringr::str_detect(variable, "(^|_)uid$|^state$|^state_no$|^pc$|^ac$|^year$") ~ "identifier",
     stringr::str_detect(variable, "fr_party_vote_share|voted_fr|close_any_fr|fr_candidate_present") ~ "outcome",
+    variable %in% c(
+      "fdi_spatial_support",
+      "fdi_n_touching_neighbors"
+    ) ~ "diagnostic",
     stringr::str_detect(variable, "fdi_") ~ "economic exposure",
     stringr::str_detect(variable, "mig_|muslim|nonlocal_language") ~ "demographic exposure",
     stringr::str_detect(variable, "male_share|work_migrant|education|ed_sec_share") ~ "composition",
@@ -420,6 +425,8 @@ infer_role <- function(variable) {
 
 infer_unit <- function(variable) {
   dplyr::case_when(
+    variable == "fdi_spatial_support" ~ "indicator",
+    variable == "fdi_n_touching_neighbors" ~ "count",
     stringr::str_ends(variable, "_pp") ~ "percentage points",
     stringr::str_detect(variable, "pct_change") ~ "percent change",
     stringr::str_detect(variable, "ratio_points") ~ "ratio points",
@@ -451,6 +458,10 @@ infer_source_geography <- function(variable) {
 
 infer_source_file <- function(variable) {
   dplyr::case_when(
+    variable %in% c(
+      "fdi_spatial_support",
+      "fdi_n_touching_neighbors"
+    ) ~ "post-2008 assembly-constituency polygons and touching-neighbor graph",
     stringr::str_detect(variable, "fdi_") ~ "data/IN_FDI_2004_2014.csv",
     stringr::str_detect(variable, "^secc_|^ed_sec_share$|house_tax1|log_secc_cons") ~
       "data/shrug/secc_*_con08.dta",
@@ -472,9 +483,11 @@ infer_source_file <- function(variable) {
 infer_definition <- function(variable) {
   dplyr::case_when(
     variable == "fr_party_vote_share" ~ "100 × (BJP + SHS + MNS votes) / valid votes; zero when no far-right candidate runs",
-    variable == "any_fdi_total_own_all" ~ "1 when at least one FDI project is located inside the AC in the election exposure window",
-    variable == "any_fdi_total_adjacent_all" ~ "1 when at least one FDI project is located in a touching AC in the election exposure window",
-    variable == "any_fdi_total_local_all" ~ "1 when at least one FDI project is located inside or adjacent to the AC in the election exposure window",
+    variable == "fdi_spatial_support" ~ "1/TRUE when the election AC has a usable post-2008 polygon for measuring own, adjacent, and local FDI; unsupported ACs have FDI exposure coded missing rather than zero",
+    variable == "fdi_n_touching_neighbors" ~ "Number of AC polygons touching the focal AC in the post-2008 adjacency graph; zero is valid when the focal AC itself has spatial support",
+    variable == "any_fdi_total_own_all" ~ "1 when at least one FDI project is located inside the AC in the election exposure window; missing when FDI spatial support is unavailable",
+    variable == "any_fdi_total_adjacent_all" ~ "1 when at least one FDI project is located in a touching AC in the election exposure window; missing when FDI spatial support is unavailable",
+    variable == "any_fdi_total_local_all" ~ "1 when at least one FDI project is located inside or adjacent to the AC in the election exposure window; missing when FDI spatial support is unavailable",
     variable == "ed_sec_share" ~ "Population-weighted combination of rural and urban SECC secondary-school-or-above shares",
     variable == "secc_hh" ~ "Sum of available rural and urban SECC household counts",
     variable == "house_tax1_rural_n" ~ "Number of rural households paying income tax or professional tax",
@@ -485,9 +498,9 @@ infer_definition <- function(variable) {
     variable == "secc_cons_hh_complete" ~ "Household-count-weighted annual household consumption; mixed ACs require both sector estimates",
     variable == "voted_fr" ~ "1 when the respondent reports voting BJP, SHS, or MNS; 0 for another valid party response",
     variable == "close_any_fr" ~ "1 when the respondent reports closeness to BJP, SHS, or MNS; 0 for a valid non-far-right closeness response",
-    stringr::str_detect(variable, "^fdi_") & stringr::str_ends(variable, "_n") ~ "Number of distinct FDI projects in the named sector, scope, status, and election exposure window",
-    stringr::str_detect(variable, "^fdi_.*_pc100k$") ~ "FDI project count per 100,000 AC residents",
-    stringr::str_detect(variable, "^log1p_fdi_") ~ "log(1 + FDI projects per 100,000 AC residents)",
+    stringr::str_detect(variable, "^fdi_") & stringr::str_ends(variable, "_n") ~ "Number of distinct FDI projects in the named sector, scope, status, and election exposure window; missing when FDI spatial support is unavailable",
+    stringr::str_detect(variable, "^fdi_.*_pc100k$") ~ "FDI project count per 100,000 AC residents; missing when FDI spatial support is unavailable",
+    stringr::str_detect(variable, "^log1p_fdi_") ~ "log(1 + FDI projects per 100,000 AC residents); missing when FDI spatial support is unavailable",
     variable == "mig_total_upto_2001" ~ "Interstate plus international migrants with 10–19 or 20+ years residence in the 2011 Census",
     stringr::str_detect(variable, "mig_accel_.*_ratio") ~ "Ratio of the migration windows named in the variable; missing when the denominator is zero",
     stringr::str_detect(variable, "mig_accel_.*_pct_change") ~ "100 × (migration-window ratio − 1); missing when the denominator is zero",

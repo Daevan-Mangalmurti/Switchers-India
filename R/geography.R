@@ -379,7 +379,17 @@ build_geography <- function(paths, dirs) {
 
   ac_reference_sf <- ac_map_clean |>
     dplyr::select(state_no, ac, geometry) |>
-    dplyr::left_join(ac_reference, by = c("state_no", "ac"), relationship = "one-to-one")
+    dplyr::left_join(
+      ac_reference,
+      by = c("state_no", "ac"),
+      relationship = "one-to-one"
+    ) |>
+    dplyr::mutate(
+      ac_uid = dplyr::coalesce(
+        ac_uid,
+        make_ac_uid(state_no, ac)
+      )
+    )
 
   touches <- sf::st_touches(ac_reference_sf)
   ac_neighbor_pairs <- tibble::tibble(
