@@ -1056,6 +1056,15 @@ add_district_lineage <- function(data, year, district_name_col, lineage) {
     dplyr::mutate(district_name_norm_join = norm_name(.data[[district_name_col]]))
   
   if (year == 2001) {
+    data <- data |>
+      dplyr::mutate(
+        district_name_norm_join = dplyr::recode(
+          district_name_norm_join,
+          "SANT RAVIDAS NAGAR BHADOHI" = "SANT RAVIDAS NAGAR",
+          .default = district_name_norm_join
+        )
+      )
+
     data |>
       dplyr::left_join(
         lineage$pairs |>

@@ -259,6 +259,7 @@ state_codes <- c(
   "DAMAN AND DIU" = 25L,
   "DELHI" = 7L,
   "NCT DELHI" = 7L,
+  "NCT OF DELHI" = 7L,
   "GOA" = 30L,
   "GUJARAT" = 24L,
   "HARYANA" = 6L,

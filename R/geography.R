@@ -326,6 +326,109 @@ build_geography <- function(paths, dirs) {
       manual_xwalk = TRUE
     )
 
+  lineage_source_name <- function(x) {
+    x_norm <- norm_name(x)
+
+    dplyr::recode(
+      x_norm,
+      "PURBA MEDINAPUR" = "PURBA MEDINIPUR",
+      "PASCHIM MEDINAPUR" = "PASCHIM MEDINIPUR",
+      "NORTH 24 PARGANAS" = "NORTH TWENTY FOUR PARGANAS",
+      "SOUTH 24 PARGANAS" = "SOUTH TWENTY FOUR PARGANAS",
+      "SARAIKELA" = "SARAIKELA KHARSAWAN",
+      .default = x_norm
+    )
+  }
+
+  historical_lineage_name_lookup <- dplyr::bind_rows(
+    district_lineage$pairs |>
+      dplyr::transmute(
+        state_no = state_no_2001,
+        district_source_norm = district_name_2001_norm,
+        district_harmonization_group_id
+      ),
+    district_lineage$pairs |>
+      dplyr::transmute(
+        state_no = state_no_2011,
+        district_source_norm = district_name_2011_norm,
+        district_harmonization_group_id
+      )
+  ) |>
+    dplyr::filter(
+      !is.na(state_no),
+      !is.na(district_source_norm),
+      district_source_norm != "",
+      !is.na(district_harmonization_group_id)
+    ) |>
+    dplyr::distinct() |>
+    dplyr::add_count(
+      state_no,
+      district_source_norm,
+      name = "n_lineage_groups"
+    ) |>
+    dplyr::filter(n_lineage_groups == 1L) |>
+    dplyr::select(
+      state_no,
+      district_source_norm,
+      district_harmonization_group_id
+    ) |>
+    dplyr::left_join(
+      district_lineage$groups |>
+        dplyr::select(
+          district_harmonization_group_id,
+          relationship_type,
+          change_comparable
+        ),
+      by = "district_harmonization_group_id",
+      relationship = "many-to-one"
+    )
+
+  ac_lineage_fallback <- dplyr::bind_rows(
+    ac_dist,
+    manual_missing
+  ) |>
+    dplyr::mutate(
+      lineage_fallback_allowed =
+        dplyr::coalesce(manual_xwalk, FALSE) |
+        !dplyr::coalesce(ambiguous_ac, FALSE) |
+        dplyr::coalesce(use_key, FALSE)
+    ) |>
+    dplyr::filter(lineage_fallback_allowed) |>
+    dplyr::transmute(
+      state_no,
+      ac,
+      district_source_name = district,
+      district_source_norm_original = norm_name(district),
+      district_source_norm = lineage_source_name(district),
+      district_lineage_alias_used =
+        district_source_norm_original != district_source_norm
+    ) |>
+    dplyr::left_join(
+      historical_lineage_name_lookup |>
+        dplyr::rename(
+          district_harmonization_group_id_fallback =
+            district_harmonization_group_id,
+          relationship_type_fallback =
+            relationship_type,
+          change_comparable_fallback =
+            change_comparable
+        ),
+      by = c(
+        "state_no",
+        "district_source_norm"
+      ),
+      relationship = "many-to-one"
+    ) |>
+    dplyr::select(
+      state_no,
+      ac,
+      district_source_name,
+      district_lineage_alias_used,
+      district_harmonization_group_id_fallback,
+      relationship_type_fallback,
+      change_comparable_fallback
+    )
+
   ac_reference <- dplyr::bind_rows(ac_dist, manual_missing) |>
     dplyr::left_join(
       district_reference,
@@ -358,6 +461,39 @@ build_geography <- function(paths, dirs) {
         ),
       by = c("state_no" = "state_no_2011", "district_name_2011_norm")
     ) |>
+    dplyr::left_join(
+      ac_lineage_fallback,
+      by = c("state_no", "ac"),
+      relationship = "one-to-one"
+    ) |>
+    dplyr::mutate(
+      district_lineage_source = dplyr::case_when(
+        !is.na(district_harmonization_group_id) ~
+          "2011_district_exact",
+        is.na(district_harmonization_group_id) &
+          !is.na(district_harmonization_group_id_fallback) ~
+          "historical_lineage_exact",
+        TRUE ~
+          "unresolved"
+      ),
+      district_lineage_alias_used = dplyr::if_else(
+        district_lineage_source == "historical_lineage_exact",
+        dplyr::coalesce(district_lineage_alias_used, FALSE),
+        FALSE
+      ),
+      district_harmonization_group_id = dplyr::coalesce(
+        district_harmonization_group_id,
+        district_harmonization_group_id_fallback
+      ),
+      relationship_type = dplyr::coalesce(
+        relationship_type,
+        relationship_type_fallback
+      ),
+      change_comparable = dplyr::coalesce(
+        change_comparable,
+        change_comparable_fallback
+      )
+    ) |>
     dplyr::transmute(
       state,
       state_no,
@@ -370,6 +506,8 @@ build_geography <- function(paths, dirs) {
       district_harmonization_group_id,
       district_relationship_type = relationship_type,
       district_change_comparable = change_comparable,
+      district_lineage_source,
+      district_lineage_alias_used,
       manual_xwalk,
       district_join_success = !is.na(district_code_2011)
     ) |>
