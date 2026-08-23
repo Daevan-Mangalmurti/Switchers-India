@@ -136,6 +136,35 @@ build_fdi <- function(paths, dirs, geography, elections, demographics) {
     2014L, as.Date("2009-04-01"), as.Date("2014-04-01")
   )
 
+  change_periods <- tibble::tribble(
+    ~window, ~period_start, ~period_end,
+    "early21", as.Date("2004-04-01"), as.Date("2006-01-01"),
+    "late21", as.Date("2012-07-01"), as.Date("2014-04-01")
+  ) |>
+    dplyr::mutate(
+      n_months = purrr::map2_int(
+        period_start,
+        period_end,
+        ~ length(
+          seq.Date(
+            .x,
+            .y - 1,
+            by = "month"
+          )
+        )
+      )
+    )
+
+  if (
+    any(
+      change_periods$n_months != 21L
+    )
+  ) {
+    stop(
+      "Each alternative FDI change window must contain exactly 21 months."
+    )
+  }
+
   projects <- raw |>
     dplyr::mutate(
       source_row = dplyr::row_number(),
@@ -683,6 +712,582 @@ build_fdi <- function(paths, dirs, geography, elections, demographics) {
 
   assert_unique_rows(fdi_ac_year, c("ac_uid", "year"), "FDI AC-year data")
 
+  window_levels <-
+    change_periods$window
+
+  exposure_21m_expanded <- exposure |>
+    dplyr::filter(
+      spatial_match_valid,
+      standardized_status %in%
+        c(
+          "announced",
+          "opened"
+        )
+    ) |>
+    dplyr::mutate(
+      window =
+        dplyr::case_when(
+          project_month >=
+            change_periods$period_start[
+              change_periods$window ==
+                "early21"
+            ] &
+            project_month <
+              change_periods$period_end[
+                change_periods$window ==
+                  "early21"
+              ] ~
+            "early21",
+
+          project_month >=
+            change_periods$period_start[
+              change_periods$window ==
+                "late21"
+            ] &
+            project_month <
+              change_periods$period_end[
+                change_periods$window ==
+                  "late21"
+              ] ~
+            "late21",
+
+          TRUE ~
+            NA_character_
+        ),
+
+      sector_list =
+        purrr::map(
+          standardized_sector,
+          ~ c(
+            "total",
+            dplyr::case_when(
+              .x ==
+                "manufacturing" ~
+                "mfg",
+
+              .x ==
+                "services" ~
+                "services",
+
+              TRUE ~
+                NA_character_
+            )
+          )
+        )
+    ) |>
+    dplyr::filter(
+      !is.na(
+        window
+      )
+    ) |>
+    tidyr::unnest_longer(
+      sector_list,
+      values_to =
+        "sector"
+    ) |>
+    dplyr::filter(
+      !is.na(
+        sector
+      )
+    ) |>
+    dplyr::distinct(
+      fdi_project_uid,
+      exposed_ac_uid,
+      window,
+      sector,
+      exposure_scope
+    )
+
+  counts_21m_long <-
+    exposure_21m_expanded |>
+    dplyr::summarise(
+      projects_n =
+        dplyr::n_distinct(
+          fdi_project_uid
+        ),
+      .by =
+        c(
+          exposed_ac_uid,
+          window,
+          sector,
+          exposure_scope
+        )
+    )
+
+  full_grid_21m <-
+    elections$ac_year |>
+    dplyr::distinct(
+      exposed_ac_uid =
+        ac_uid
+    ) |>
+    dplyr::left_join(
+      spatial_support |>
+        dplyr::select(
+          exposed_ac_uid =
+            ac_uid,
+          fdi_spatial_support,
+          fdi_n_touching_neighbors
+        ),
+      by =
+        "exposed_ac_uid",
+      relationship =
+        "many-to-one"
+    ) |>
+    dplyr::mutate(
+      fdi_spatial_support =
+        dplyr::coalesce(
+          fdi_spatial_support,
+          FALSE
+        ),
+
+      fdi_n_touching_neighbors =
+        dplyr::if_else(
+          fdi_spatial_support,
+          dplyr::coalesce(
+            fdi_n_touching_neighbors,
+            0L
+          ),
+          NA_integer_
+        )
+    ) |>
+    tidyr::crossing(
+      window =
+        window_levels,
+      sector =
+        sector_levels,
+      exposure_scope =
+        scope_levels
+    ) |>
+    dplyr::left_join(
+      counts_21m_long,
+      by =
+        c(
+          "exposed_ac_uid",
+          "window",
+          "sector",
+          "exposure_scope"
+        )
+    ) |>
+    dplyr::mutate(
+      projects_n =
+        dplyr::if_else(
+          fdi_spatial_support,
+          tidyr::replace_na(
+            projects_n,
+            0L
+          ),
+          NA_integer_
+        )
+    ) |>
+    dplyr::left_join(
+      demographics |>
+        dplyr::select(
+          exposed_ac_uid =
+            ac_uid,
+          proxy_ac_pop
+        ),
+      by =
+        "exposed_ac_uid",
+      relationship =
+        "many-to-one"
+    ) |>
+    dplyr::mutate(
+      projects_pc100k =
+        per_100k(
+          projects_n,
+          proxy_ac_pop
+        ),
+
+      log1p_projects_pc100k =
+        log1p(
+          projects_pc100k
+        ),
+
+      stem =
+        paste(
+          "fdi",
+          sector,
+          exposure_scope,
+          window,
+          sep = "_"
+        )
+    )
+
+  fdi_ac_21m_all_scopes <-
+    full_grid_21m |>
+    dplyr::select(
+      exposed_ac_uid,
+      fdi_spatial_support,
+      fdi_n_touching_neighbors,
+      stem,
+      projects_n,
+      projects_pc100k,
+      log1p_projects_pc100k
+    ) |>
+    tidyr::pivot_wider(
+      names_from =
+        stem,
+      values_from =
+        c(
+          projects_n,
+          projects_pc100k,
+          log1p_projects_pc100k
+        ),
+      names_glue =
+        "{stem}_{.value}"
+    ) |>
+    dplyr::rename_with(
+      ~ stringr::str_replace(
+        .x,
+        "_projects_n$",
+        "_n"
+      )
+    ) |>
+    dplyr::rename_with(
+      ~ stringr::str_replace(
+        .x,
+        "_projects_pc100k$",
+        "_pc100k"
+      )
+    ) |>
+    dplyr::rename_with(
+      ~ stringr::str_replace(
+        .x,
+        "_log1p_projects_pc100k$",
+        "_log1p_pc100k"
+      )
+    ) |>
+    dplyr::rename_with(
+      ~ stringr::str_replace(
+        .x,
+        "^(fdi_.+)_log1p_pc100k$",
+        "log1p_\\1_pc100k"
+      )
+    ) |>
+    dplyr::rename(
+      ac_uid =
+        exposed_ac_uid
+    ) |>
+    dplyr::left_join(
+      fdi_geography_lookup,
+      by =
+        "ac_uid",
+      relationship =
+        "many-to-one"
+    ) |>
+    dplyr::arrange(
+      state_no,
+      ac
+    )
+
+  for (
+    window_name in window_levels
+  ) {
+    for (
+      scope in scope_levels
+    ) {
+      total_col <-
+        paste0(
+          "fdi_total_",
+          scope,
+          "_",
+          window_name,
+          "_n"
+        )
+
+      mfg_col <-
+        paste0(
+          "fdi_mfg_",
+          scope,
+          "_",
+          window_name,
+          "_n"
+        )
+
+      services_col <-
+        paste0(
+          "fdi_services_",
+          scope,
+          "_",
+          window_name,
+          "_n"
+        )
+
+      sector_identity_failed <-
+        !is.na(
+          fdi_ac_21m_all_scopes[[total_col]]
+        ) &
+        (
+          is.na(
+            fdi_ac_21m_all_scopes[[mfg_col]]
+          ) |
+          is.na(
+            fdi_ac_21m_all_scopes[[services_col]]
+          ) |
+          fdi_ac_21m_all_scopes[[total_col]] !=
+            fdi_ac_21m_all_scopes[[mfg_col]] +
+            fdi_ac_21m_all_scopes[[services_col]]
+        )
+
+      if (
+        any(
+          sector_identity_failed
+        )
+      ) {
+        stop(
+          "21-month FDI sector identity failed for window=",
+          window_name,
+          ", scope=",
+          scope,
+          "."
+        )
+      }
+    }
+  }
+
+  for (
+    window_name in window_levels
+  ) {
+    for (
+      sector in sector_levels
+    ) {
+      own_col <-
+        paste0(
+          "fdi_",
+          sector,
+          "_own_",
+          window_name,
+          "_n"
+        )
+
+      adjacent_col <-
+        paste0(
+          "fdi_",
+          sector,
+          "_adjacent_",
+          window_name,
+          "_n"
+        )
+
+      local_col <-
+        paste0(
+          "fdi_",
+          sector,
+          "_local_",
+          window_name,
+          "_n"
+        )
+
+      spatial_identity_failed <-
+        !is.na(
+          fdi_ac_21m_all_scopes[[local_col]]
+        ) &
+        (
+          is.na(
+            fdi_ac_21m_all_scopes[[own_col]]
+          ) |
+          is.na(
+            fdi_ac_21m_all_scopes[[adjacent_col]]
+          ) |
+          fdi_ac_21m_all_scopes[[local_col]] !=
+            fdi_ac_21m_all_scopes[[own_col]] +
+            fdi_ac_21m_all_scopes[[adjacent_col]]
+        )
+
+      if (
+        any(
+          spatial_identity_failed
+        )
+      ) {
+        stop(
+          "21-month FDI spatial identity failed for window=",
+          window_name,
+          ", sector=",
+          sector,
+          "."
+        )
+      }
+    }
+  }
+
+  for (
+    sector in sector_levels
+  ) {
+    for (
+      scope in scope_levels
+    ) {
+      early_n <-
+        paste0(
+          "fdi_",
+          sector,
+          "_",
+          scope,
+          "_early21_n"
+        )
+
+      late_n <-
+        paste0(
+          "fdi_",
+          sector,
+          "_",
+          scope,
+          "_late21_n"
+        )
+
+      early_pc <-
+        paste0(
+          "fdi_",
+          sector,
+          "_",
+          scope,
+          "_early21_pc100k"
+        )
+
+      late_pc <-
+        paste0(
+          "fdi_",
+          sector,
+          "_",
+          scope,
+          "_late21_pc100k"
+        )
+
+      early_log <-
+        paste0(
+          "log1p_fdi_",
+          sector,
+          "_",
+          scope,
+          "_early21_pc100k"
+        )
+
+      late_log <-
+        paste0(
+          "log1p_fdi_",
+          sector,
+          "_",
+          scope,
+          "_late21_pc100k"
+        )
+
+      fdi_ac_21m_all_scopes[[paste0(
+            "d_fdi_",
+            sector,
+            "_",
+            scope,
+            "_21m_n"
+          )]] <-
+        fdi_ac_21m_all_scopes[[late_n]] -
+        fdi_ac_21m_all_scopes[[early_n]]
+
+      fdi_ac_21m_all_scopes[[paste0(
+            "d_fdi_",
+            sector,
+            "_",
+            scope,
+            "_21m_pc100k"
+          )]] <-
+        fdi_ac_21m_all_scopes[[late_pc]] -
+        fdi_ac_21m_all_scopes[[early_pc]]
+
+      fdi_ac_21m_all_scopes[[paste0(
+            "d_log1p_fdi_",
+            sector,
+            "_",
+            scope,
+            "_21m_pc100k"
+          )]] <-
+        fdi_ac_21m_all_scopes[[late_log]] -
+        fdi_ac_21m_all_scopes[[early_log]]
+    }
+  }
+
+  fdi_ac_21m <-
+    fdi_ac_21m_all_scopes |>
+    dplyr::select(
+      ac_uid,
+      state_no,
+      ac,
+      fdi_spatial_support,
+      fdi_n_touching_neighbors,
+      dplyr::matches(
+        "^fdi_(total|mfg|services)_(own|local)_(early21|late21)_(n|pc100k)$"
+      ),
+      dplyr::matches(
+        "^log1p_fdi_(total|mfg|services)_(own|local)_(early21|late21)_pc100k$"
+      ),
+      dplyr::matches(
+        "^d_fdi_(total|mfg|services)_(own|local)_21m_(n|pc100k)$"
+      ),
+      dplyr::matches(
+        "^d_log1p_fdi_(total|mfg|services)_(own|local)_21m_pc100k$"
+      )
+    ) |>
+    dplyr::arrange(
+      state_no,
+      ac
+    )
+
+  assert_unique_rows(
+    fdi_ac_21m,
+    "ac_uid",
+    "FDI 21-month AC data"
+  )
+
+  fdi_21m_diagnostics <-
+    full_grid_21m |>
+    dplyr::summarise(
+      n_acs =
+        dplyr::n(),
+
+      n_spatially_supported_acs =
+        sum(
+          fdi_spatial_support
+        ),
+
+      n_spatially_unsupported_acs =
+        sum(
+          !fdi_spatial_support
+        ),
+
+      n_exposed_acs =
+        sum(
+          projects_n > 0,
+          na.rm = TRUE
+        ),
+
+      n_zero_exposure_acs =
+        sum(
+          projects_n == 0,
+          na.rm = TRUE
+        ),
+
+      mean_projects =
+        mean(
+          projects_n,
+          na.rm = TRUE
+        ),
+
+      median_projects =
+        median(
+          projects_n,
+          na.rm = TRUE
+        ),
+
+      max_projects =
+        max(
+          projects_n,
+          na.rm = TRUE
+        ),
+
+      .by =
+        c(
+          window,
+          sector,
+          exposure_scope
+        )
+    )
+
   project_diagnostics <- projects |>
     dplyr::summarise(
       n_projects = dplyr::n_distinct(fdi_project_uid),
@@ -851,6 +1456,14 @@ build_fdi <- function(paths, dirs, geography, elections, demographics) {
   write_csv_checked(projects, file.path(dirs$intermediate_dir, "fdi_projects_clean.csv"), "fdi_project_uid")
   write_csv_checked(exposure, file.path(dirs$intermediate_dir, "fdi_project_exposure.csv"), c("fdi_project_uid", "exposed_ac_uid", "exposure_scope"))
   write_csv_checked(fdi_ac_year, file.path(dirs$intermediate_dir, "fdi_ac_year.csv"), c("ac_uid", "year"))
+  write_csv_checked(
+    fdi_ac_21m,
+    file.path(
+      dirs$intermediate_dir,
+      "fdi_ac_21m.csv"
+    ),
+    "ac_uid"
+  )
   write_csv_checked(project_diagnostics, file.path(dirs$diagnostic_dir, "fdi_project_diagnostics.csv"))
   write_csv_checked(
     exposure_diagnostics,
@@ -867,6 +1480,13 @@ build_fdi <- function(paths, dirs, geography, elections, demographics) {
     )
   )
   write_csv_checked(
+    fdi_21m_diagnostics,
+    file.path(
+      dirs$diagnostic_dir,
+      "fdi_21m_exposure_diagnostics.csv"
+    )
+  )
+  write_csv_checked(
     build_provenance,
     file.path(
       dirs$diagnostic_dir,
@@ -880,10 +1500,12 @@ build_fdi <- function(paths, dirs, geography, elections, demographics) {
     projects = projects,
     exposure = exposure,
     ac_year = fdi_ac_year,
+    ac_21m = fdi_ac_21m,
     diagnostics = list(
       projects = project_diagnostics,
       exposure = exposure_diagnostics,
       spatial_support = spatial_support_diagnostics,
+      exposure_21m = fdi_21m_diagnostics,
       provenance = build_provenance
     )
   )

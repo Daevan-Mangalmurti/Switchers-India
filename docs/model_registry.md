@@ -283,6 +283,24 @@ Construct separately for:
 
 Primary geography remains local; own-AC versions may be retained as robustness.
 
+These windows are constructed centrally in `R/fdi.R` from the same cleaned,
+taxonomy-classified, spatially assigned project table used for the 60-month
+election-cycle exposures. Model and figure scripts must consume the derived
+variables rather than redefine the date windows or sector taxonomy.
+
+Canonical raw local variables are:
+
+- `fdi_total_local_early21_pc100k`
+- `fdi_total_local_late21_pc100k`
+- `d_fdi_total_local_21m_pc100k`
+- corresponding `mfg` and `services` variables
+
+Own-AC versions use the same naming pattern with `local` replaced by `own`.
+
+The logarithmic change robustness is stored as
+`d_log1p_fdi_*_21m_pc100k` and is computed from the difference of the two
+log-transformed levels.
+
 ### Model parameterization
 
 When change in FDI is used, baseline early-period FDI must also enter the model.

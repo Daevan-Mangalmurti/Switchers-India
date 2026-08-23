@@ -69,6 +69,21 @@ ac_year <- elections$ac_year |>
     relationship = "one-to-one"
   ) |>
   dplyr::left_join(
+    fdi$ac_21m |>
+      dplyr::select(
+        -dplyr::any_of(
+          c(
+            "state_no",
+            "ac",
+            "fdi_spatial_support",
+            "fdi_n_touching_neighbors"
+          )
+        )
+      ),
+    by = "ac_uid",
+    relationship = "many-to-one"
+  ) |>
+  dplyr::left_join(
     migration$ac_year |>
       dplyr::select(-dplyr::any_of(c("state_no", "ac", "proxy_ac_pop", "con08_land_area"))),
     by = c("ac_uid", "year"),
@@ -158,6 +173,13 @@ fixed_columns <- c(
   "census_context_year"
 )
 
+fdi_21m_fixed_columns <- names(ac_year)[
+  stringr::str_detect(
+    names(ac_year),
+    "(early21|late21|_21m_)"
+  )
+]
+
 secc_fixed_columns <- names(ac_year)[
   stringr::str_detect(
     names(ac_year),
@@ -169,7 +191,11 @@ secc_fixed_columns <- names(ac_year)[
 ]
 
 fixed_columns <- unique(
-  c(fixed_columns, secc_fixed_columns)
+  c(
+    fixed_columns,
+    fdi_21m_fixed_columns,
+    secc_fixed_columns
+  )
 )
 
 census_dated_columns <- names(ac_year)[
@@ -357,6 +383,7 @@ final_key_diagnostics <- tibble::tribble(
 final_join_diagnostics <- tibble::tribble(
   ~target_file, ~source_module, ~join_key, ~rows_before, ~rows_after, ~matched_rows,
   "ac_year.csv", "FDI", "ac_uid + year", nrow(elections$ac_year), nrow(ac_year), sum(!is.na(ac_year$fdi_total_local_all_n)),
+  "ac_year.csv", "FDI 21-month fixed exposure", "ac_uid", nrow(elections$ac_year), nrow(ac_year), sum(!is.na(ac_year$fdi_total_local_early21_n)),
   "ac_year.csv", "Migration", "ac_uid + year", nrow(elections$ac_year), nrow(ac_year), sum(!is.na(ac_year$mig_recent_5yr_total)),
   "ac_year.csv", "Census context", "ac_uid", nrow(elections$ac_year), nrow(ac_year), sum(!is.na(ac_year$muslim_share_2011_dist_proxy)),
   "ac_year.csv", "SHRUG SECC", "ac_uid", nrow(elections$ac_year), nrow(ac_year), sum(!is.na(ac_year$secc_context_year)),
@@ -430,10 +457,10 @@ infer_unit <- function(variable) {
     stringr::str_ends(variable, "_pp") ~ "percentage points",
     stringr::str_detect(variable, "pct_change") ~ "percent change",
     stringr::str_detect(variable, "ratio_points") ~ "ratio points",
+    stringr::str_detect(variable, "log") ~ "log units",
     stringr::str_detect(variable, "pc100k") ~ "per 100,000 residents",
     stringr::str_detect(variable, "density_sqkm") ~ "per square kilometre",
     stringr::str_detect(variable, "vote_share") ~ "percent",
-    stringr::str_detect(variable, "log") ~ "log units",
     stringr::str_detect(variable, "share|rate|per_population") ~ "proportion",
     stringr::str_detect(variable, "_n$|population|votes|respondents|migrants|employment_total") ~ "count",
     TRUE ~ "source units"
@@ -498,6 +525,15 @@ infer_definition <- function(variable) {
     variable == "secc_cons_hh_complete" ~ "Household-count-weighted annual household consumption; mixed ACs require both sector estimates",
     variable == "voted_fr" ~ "1 when the respondent reports voting BJP, SHS, or MNS; 0 for another valid party response",
     variable == "close_any_fr" ~ "1 when the respondent reports closeness to BJP, SHS, or MNS; 0 for a valid non-far-right closeness response",
+    stringr::str_detect(variable, "^fdi_.*_early21_n$") ~ "Number of distinct announced/opened FDI projects during April 2004-December 2005 in the named sector and scope; missing when FDI spatial support is unavailable",
+    stringr::str_detect(variable, "^fdi_.*_late21_n$") ~ "Number of distinct announced/opened FDI projects during July 2012-March 2014 in the named sector and scope; missing when FDI spatial support is unavailable",
+    stringr::str_detect(variable, "^fdi_.*_early21_pc100k$") ~ "Early 21-month FDI project count per 100,000 2011 AC residents; April 2004-December 2005; missing when FDI spatial support is unavailable",
+    stringr::str_detect(variable, "^fdi_.*_late21_pc100k$") ~ "Late 21-month FDI project count per 100,000 2011 AC residents; July 2012-March 2014; missing when FDI spatial support is unavailable",
+    stringr::str_detect(variable, "^log1p_fdi_.*_early21_pc100k$") ~ "log(1 + early 21-month FDI projects per 100,000 2011 AC residents)",
+    stringr::str_detect(variable, "^log1p_fdi_.*_late21_pc100k$") ~ "log(1 + late 21-month FDI projects per 100,000 2011 AC residents)",
+    stringr::str_detect(variable, "^d_fdi_.*_21m_n$") ~ "Late July 2012-March 2014 project count minus early April 2004-December 2005 project count",
+    stringr::str_detect(variable, "^d_fdi_.*_21m_pc100k$") ~ "Late July 2012-March 2014 FDI per 100,000 minus early April 2004-December 2005 FDI per 100,000, using the same 2011 AC population denominator",
+    stringr::str_detect(variable, "^d_log1p_fdi_.*_21m_pc100k$") ~ "log(1 + late FDI per 100,000) minus log(1 + early FDI per 100,000); not log of the raw difference",
     stringr::str_detect(variable, "^fdi_") & stringr::str_ends(variable, "_n") ~ "Number of distinct FDI projects in the named sector, scope, status, and election exposure window; missing when FDI spatial support is unavailable",
     stringr::str_detect(variable, "^fdi_.*_pc100k$") ~ "FDI project count per 100,000 AC residents; missing when FDI spatial support is unavailable",
     stringr::str_detect(variable, "^log1p_fdi_") ~ "log(1 + FDI projects per 100,000 AC residents); missing when FDI spatial support is unavailable",
@@ -542,6 +578,9 @@ make_dictionary <- function(data, file_name) {
       ),
       source_geography = infer_source_geography(variable),
       time_reference = dplyr::case_when(
+        stringr::str_detect(variable, "early21") ~ "April 2004 to December 2005",
+        stringr::str_detect(variable, "late21") ~ "July 2012 to March 2014",
+        stringr::str_detect(variable, "_21m_") ~ "July 2012-March 2014 minus April 2004-December 2005",
         stringr::str_detect(variable, "2001_2011") ~ "2001 to 2011",
         stringr::str_detect(variable, "_2001") ~ "2001",
         stringr::str_detect(variable, "_2011") ~ "2011",
