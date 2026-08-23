@@ -9,14 +9,15 @@
 #             (Apr 2004-Dec 2005) and a late window
 #             (Jul 2012-Mar 2014), by total/manufacturing/services.
 #
-# FDI definitions match the project pipeline:
+# FDI measures are consumed directly from the canonical final data
+# built by R/fdi.R:
 #   - local exposure = own AC + touching ACs
 #   - eligible statuses = announced + opened
-#   - manufacturing/services use standardized_sector from the
-#     project's FDI sector taxonomy.
+#   - manufacturing/services use the central FDI sector taxonomy
+#   - 60-month and 21-month windows are defined only in R/fdi.R
 #
-# For Figure C, the primary plotted change is the literal difference
-# between two equal 21-month windows. No annualization is required.
+# Figure C plots the canonical late-minus-early difference between
+# two equal 21-month windows. No annualization is applied.
 # ============================================================
 
 suppressPackageStartupMessages({
@@ -41,182 +42,189 @@ project_root <- Sys.getenv(
 source(file.path(project_root, "R", "helpers.R"))
 paths <- build_project_paths(project_root)
 
-FDI_SCOPE <- "local"
-FDI_ALLOWED_STATUSES <- c("announced", "opened")
-
-# Existing election-window convention used in the project.
-WINDOW_0914_START <- as.Date("2009-04-01")
-WINDOW_0914_END   <- as.Date("2014-04-01")
-
-# Canonical equal-length early/late comparison windows.
-# Left-closed/right-open means these are Apr 2004-Dec 2005 inclusive
-# and Jul 2012-Mar 2014 inclusive.
-EARLY_START <- as.Date("2004-04-01")
-EARLY_END   <- as.Date("2006-01-01")
-LATE_START  <- as.Date("2012-07-01")
-LATE_END    <- as.Date("2014-04-01")
-
-months_between <- function(start_date, end_date) {
-  12L * (lubridate::year(end_date) - lubridate::year(start_date)) +
-    (lubridate::month(end_date) - lubridate::month(start_date))
-}
-
-EARLY_MONTHS <- months_between(EARLY_START, EARLY_END)
-LATE_MONTHS  <- months_between(LATE_START, LATE_END)
-
-stopifnot(EARLY_MONTHS == 21L, LATE_MONTHS == 21L)
-
 out_root <- file.path(
   paths$derived_dir,
   "paper_figures",
   "descriptive_histograms_v1_0"
 )
-out_data_dir <- file.path(out_root, "data")
-out_figure_dir <- file.path(out_root, "figures")
-dir.create(out_data_dir, recursive = TRUE, showWarnings = FALSE)
-dir.create(out_figure_dir, recursive = TRUE, showWarnings = FALSE)
+
+out_data_dir <- file.path(
+  out_root,
+  "data"
+)
+
+out_figure_dir <- file.path(
+  out_root,
+  "figures"
+)
+
+dir.create(
+  out_data_dir,
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+
+dir.create(
+  out_figure_dir,
+  recursive = TRUE,
+  showWarnings = FALSE
+)
 
 # ============================================================
-# 1. LOAD AC FRAME + FDI EXPOSURE
+# 1. LOAD CANONICAL FINAL DATA
 # ============================================================
 
-ac_year_path <- file.path(paths$final_dir, "ac_year.rds")
-fdi_exposure_path <- file.path(paths$intermediate_dir, "fdi_project_exposure.csv")
+ac_year_path <- file.path(
+  paths$final_dir,
+  "ac_year.rds"
+)
 
-if (!file.exists(ac_year_path)) stop("Missing: ", ac_year_path)
-if (!file.exists(fdi_exposure_path)) stop("Missing: ", fdi_exposure_path)
+if (!file.exists(ac_year_path)) {
+  stop(
+    "Missing canonical final data: ",
+    ac_year_path
+  )
+}
 
-ac_year <- readRDS(ac_year_path)
-fdi_exposure <- readr::read_csv(
-  fdi_exposure_path,
-  show_col_types = FALSE,
-  progress = FALSE
+ac_year <- readRDS(
+  ac_year_path
 )
 
 required_ac <- c(
-  "ac_uid", "state_no", "ac", "year",
-  "proxy_ac_pop", "muslim_share_2001_dist_proxy"
+  "ac_uid",
+  "state_no",
+  "ac",
+  "year",
+  "proxy_ac_pop",
+  "muslim_share_2001_dist_proxy",
+  "fdi_spatial_support",
+  "fdi_total_local_all_n",
+  "fdi_mfg_local_all_n",
+  "fdi_services_local_all_n",
+  "fdi_total_local_all_pc100k",
+  "fdi_mfg_local_all_pc100k",
+  "fdi_services_local_all_pc100k",
+  "fdi_total_local_early21_n",
+  "fdi_mfg_local_early21_n",
+  "fdi_services_local_early21_n",
+  "fdi_total_local_late21_n",
+  "fdi_mfg_local_late21_n",
+  "fdi_services_local_late21_n",
+  "fdi_total_local_early21_pc100k",
+  "fdi_mfg_local_early21_pc100k",
+  "fdi_services_local_early21_pc100k",
+  "fdi_total_local_late21_pc100k",
+  "fdi_mfg_local_late21_pc100k",
+  "fdi_services_local_late21_pc100k",
+  "d_fdi_total_local_21m_pc100k",
+  "d_fdi_mfg_local_21m_pc100k",
+  "d_fdi_services_local_21m_pc100k"
 )
-missing_ac <- setdiff(required_ac, names(ac_year))
+
+missing_ac <- setdiff(
+  required_ac,
+  names(ac_year)
+)
+
 if (length(missing_ac) > 0L) {
-  stop("ac_year.rds missing: ", paste(missing_ac, collapse = ", "))
-}
-
-required_fdi <- c(
-  "fdi_project_uid", "exposed_ac_uid", "exposure_scope",
-  "project_month", "standardized_sector", "standardized_status"
-)
-missing_fdi <- setdiff(required_fdi, names(fdi_exposure))
-if (length(missing_fdi) > 0L) {
-  stop("fdi_project_exposure.csv missing: ", paste(missing_fdi, collapse = ", "))
-}
-
-# Use one row per constituency from the 2009 AC frame.
-# The Muslim-share proxy and population denominator are fixed AC attributes.
-ac_frame <- ac_year |>
-  dplyr::filter(year == 2009L) |>
-  dplyr::distinct(ac_uid, .keep_all = TRUE) |>
-  dplyr::select(
-    ac_uid, state_no, ac,
-    proxy_ac_pop,
-    muslim_share_2001_dist_proxy
+  stop(
+    "ac_year.rds missing canonical histogram variables: ",
+    paste(
+      missing_ac,
+      collapse = ", "
+    )
   )
+}
 
-fdi_base <- fdi_exposure |>
-  dplyr::mutate(
-    project_month = as.Date(project_month),
-    exposed_ac_uid = as.character(exposed_ac_uid),
-    exposure_scope = as.character(exposure_scope),
-    standardized_sector = as.character(standardized_sector),
-    standardized_status = as.character(standardized_status)
-  ) |>
+# ============================================================
+# 2. BUILD PLOT DATA FROM CANONICAL VARIABLES
+# ============================================================
+
+plot_data <- ac_year |>
   dplyr::filter(
-    exposure_scope == FDI_SCOPE,
-    standardized_status %in% FDI_ALLOWED_STATUSES,
-    !is.na(project_month),
-    !is.na(exposed_ac_uid)
+    year == 2014L
   ) |>
   dplyr::distinct(
-    fdi_project_uid,
-    exposed_ac_uid,
-    exposure_scope,
-    project_month,
-    standardized_sector,
-    standardized_status
+    ac_uid,
+    .keep_all = TRUE
+  ) |>
+  dplyr::transmute(
+    ac_uid,
+    state_no,
+    ac,
+    proxy_ac_pop,
+    fdi_spatial_support,
+    muslim_share_2001_dist_proxy,
+    muslim_share_2001_pct =
+      100 *
+      muslim_share_2001_dist_proxy,
+
+    total_n_0914 =
+      fdi_total_local_all_n,
+    mfg_n_0914 =
+      fdi_mfg_local_all_n,
+    services_n_0914 =
+      fdi_services_local_all_n,
+
+    total_pc100k_0914 =
+      fdi_total_local_all_pc100k,
+    mfg_pc100k_0914 =
+      fdi_mfg_local_all_pc100k,
+    services_pc100k_0914 =
+      fdi_services_local_all_pc100k,
+
+    total_n_early =
+      fdi_total_local_early21_n,
+    mfg_n_early =
+      fdi_mfg_local_early21_n,
+    services_n_early =
+      fdi_services_local_early21_n,
+
+    total_pc100k_early =
+      fdi_total_local_early21_pc100k,
+    mfg_pc100k_early =
+      fdi_mfg_local_early21_pc100k,
+    services_pc100k_early =
+      fdi_services_local_early21_pc100k,
+
+    total_n_late =
+      fdi_total_local_late21_n,
+    mfg_n_late =
+      fdi_mfg_local_late21_n,
+    services_n_late =
+      fdi_services_local_late21_n,
+
+    total_pc100k_late =
+      fdi_total_local_late21_pc100k,
+    mfg_pc100k_late =
+      fdi_mfg_local_late21_pc100k,
+    services_pc100k_late =
+      fdi_services_local_late21_pc100k,
+
+    change_total_pc100k =
+      d_fdi_total_local_21m_pc100k,
+    change_mfg_pc100k =
+      d_fdi_mfg_local_21m_pc100k,
+    change_services_pc100k =
+      d_fdi_services_local_21m_pc100k
+  ) |>
+  dplyr::arrange(
+    state_no,
+    ac
   )
 
-per_100k <- function(n, pop) {
-  ifelse(
-    is.finite(pop) & pop > 0,
-    100000 * n / pop,
-    NA_real_
-  )
-}
-
-count_window <- function(start_date, end_date, suffix) {
-  observed <- fdi_base |>
-    dplyr::filter(
-      project_month >= start_date,
-      project_month < end_date
-    ) |>
-    dplyr::group_by(exposed_ac_uid) |>
-    dplyr::summarise(
-      total_n = dplyr::n_distinct(fdi_project_uid),
-      mfg_n = dplyr::n_distinct(
-        fdi_project_uid[standardized_sector == "manufacturing"]
-      ),
-      services_n = dplyr::n_distinct(
-        fdi_project_uid[standardized_sector == "services"]
-      ),
-      .groups = "drop"
-    ) |>
-    dplyr::rename(ac_uid = exposed_ac_uid)
-
-  out <- ac_frame |>
-    dplyr::select(ac_uid, proxy_ac_pop) |>
-    dplyr::left_join(observed, by = "ac_uid", relationship = "one-to-one") |>
-    dplyr::mutate(
-      total_n = tidyr::replace_na(total_n, 0L),
-      mfg_n = tidyr::replace_na(mfg_n, 0L),
-      services_n = tidyr::replace_na(services_n, 0L),
-      total_pc100k = per_100k(total_n, proxy_ac_pop),
-      mfg_pc100k = per_100k(mfg_n, proxy_ac_pop),
-      services_pc100k = per_100k(services_n, proxy_ac_pop)
-    ) |>
-    dplyr::select(-proxy_ac_pop)
-
-  names(out)[names(out) != "ac_uid"] <- paste0(
-    names(out)[names(out) != "ac_uid"],
-    "_",
-    suffix
-  )
-
-  out
-}
-
-fdi_0914 <- count_window(WINDOW_0914_START, WINDOW_0914_END, "0914")
-fdi_early <- count_window(EARLY_START, EARLY_END, "early")
-fdi_late <- count_window(LATE_START, LATE_END, "late")
-
-# ============================================================
-# 2. BUILD PLOT DATA
-# ============================================================
-
-plot_data <- ac_frame |>
-  dplyr::left_join(fdi_0914, by = "ac_uid", relationship = "one-to-one") |>
-  dplyr::left_join(fdi_early, by = "ac_uid", relationship = "one-to-one") |>
-  dplyr::left_join(fdi_late, by = "ac_uid", relationship = "one-to-one") |>
-  dplyr::mutate(
-    muslim_share_2001_pct = 100 * muslim_share_2001_dist_proxy,
-
-    change_total_pc100k = total_pc100k_late - total_pc100k_early,
-    change_mfg_pc100k = mfg_pc100k_late - mfg_pc100k_early,
-    change_services_pc100k = services_pc100k_late - services_pc100k_early
-  )
+assert_unique_rows(
+  plot_data,
+  "ac_uid",
+  "paper distribution histogram data"
+)
 
 readr::write_csv(
   plot_data,
-  file.path(out_data_dir, "constituency_distribution_plot_data.csv")
+  file.path(
+    out_data_dir,
+    "constituency_distribution_plot_data.csv"
+  )
 )
 
 # ============================================================
@@ -418,8 +426,22 @@ readr::write_csv(
 cat("\n============================================================\n")
 cat("PAPER DISTRIBUTION HISTOGRAMS COMPLETE\n")
 cat("============================================================\n")
+cat("Constituency frame: 2014 election ACs\n")
 cat("Constituencies in AC frame: ", nrow(plot_data), "\n", sep = "")
-cat("Early FDI window months: ", EARLY_MONTHS, "\n", sep = "")
-cat("Late FDI window months: ", LATE_MONTHS, "\n", sep = "")
+cat(
+  "FDI-spatially supported constituencies: ",
+  sum(plot_data$fdi_spatial_support, na.rm = TRUE),
+  "\n",
+  sep = ""
+)
+cat(
+  "FDI-spatially unsupported constituencies: ",
+  sum(!plot_data$fdi_spatial_support, na.rm = TRUE),
+  "\n",
+  sep = ""
+)
+cat("Early FDI window: Apr 2004-Dec 2005, 21 months\n")
+cat("Late FDI window: Jul 2012-Mar 2014, 21 months\n")
+cat("FDI source: canonical variables from final/ac_year.rds\n")
 cat("Figures: ", out_figure_dir, "\n", sep = "")
 cat("Plot data: ", out_data_dir, "\n", sep = "")
