@@ -664,6 +664,21 @@ Also save a CSV summary containing at least:
 classification of fDi Markets activities into the project's manufacturing and
 services families.
 
+The operational two-family taxonomy used in the paper is:
+
+- **manufacturing family**: Manufacturing, Extraction, Electricity, Recycling
+- **services family**: all remaining approved fDi Markets activities
+- **total FDI**: the union of the manufacturing and services families
+
+The label "manufacturing family" is an operational paper classification that
+includes the listed industrial activities; it should not be described as a
+claim that extraction or electricity are manufacturing industries in the
+narrow national-accounts sense.
+
+Every approved activity must belong to exactly one of the two families. The
+build must stop if an activity is unmapped or if the taxonomy flags disagree
+with the standardized sector label.
+
 The intended chain is:
 
 paper classification

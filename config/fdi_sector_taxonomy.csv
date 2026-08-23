@@ -1,17 +1,17 @@
 source_activity,standardized_sector,included_in_total,included_in_manufacturing,included_in_services,classification_note
-Business Services,services,True,False,True,Approved activity-based taxonomy
-Construction,other,True,False,False,Approved activity-based taxonomy
-Customer Contact Centre,services,True,False,True,Approved activity-based taxonomy
-Education & Training,other,True,False,False,Approved activity-based taxonomy
-Electricity,other,True,False,False,Approved activity-based taxonomy
-Extraction,other,True,False,False,Approved activity-based taxonomy
-Headquarters,other,True,False,False,Approved activity-based taxonomy
-ICT & Internet Infrastructure,other,True,False,False,Approved activity-based taxonomy
-"Logistics, Distribution & Transportation",other,True,False,False,Approved activity-based taxonomy
-Maintenance & Servicing,other,True,False,False,Approved activity-based taxonomy
-Manufacturing,manufacturing,True,True,False,Approved activity-based taxonomy
-Recycling,other,True,False,False,Approved activity-based taxonomy
-Research & Development,services,True,False,True,Approved activity-based taxonomy
-"Sales, Marketing & Support",services,True,False,True,Approved activity-based taxonomy
-Shared Services Centre,services,True,False,True,Approved activity-based taxonomy
-Technical Support Centre,services,True,False,True,Approved activity-based taxonomy
+Business Services,services,TRUE,FALSE,TRUE,Operational services family: remaining fDi Markets activities
+Construction,services,TRUE,FALSE,TRUE,Operational services family: remaining fDi Markets activities
+Customer Contact Centre,services,TRUE,FALSE,TRUE,Operational services family: remaining fDi Markets activities
+Education & Training,services,TRUE,FALSE,TRUE,Operational services family: remaining fDi Markets activities
+Electricity,manufacturing,TRUE,TRUE,FALSE,"Operational manufacturing family: manufacturing, extraction, electricity, and recycling"
+Extraction,manufacturing,TRUE,TRUE,FALSE,"Operational manufacturing family: manufacturing, extraction, electricity, and recycling"
+Headquarters,services,TRUE,FALSE,TRUE,Operational services family: remaining fDi Markets activities
+ICT & Internet Infrastructure,services,TRUE,FALSE,TRUE,Operational services family: remaining fDi Markets activities
+"Logistics, Distribution & Transportation",services,TRUE,FALSE,TRUE,Operational services family: remaining fDi Markets activities
+Maintenance & Servicing,services,TRUE,FALSE,TRUE,Operational services family: remaining fDi Markets activities
+Manufacturing,manufacturing,TRUE,TRUE,FALSE,"Operational manufacturing family: manufacturing, extraction, electricity, and recycling"
+Recycling,manufacturing,TRUE,TRUE,FALSE,"Operational manufacturing family: manufacturing, extraction, electricity, and recycling"
+Research & Development,services,TRUE,FALSE,TRUE,Operational services family: remaining fDi Markets activities
+"Sales, Marketing & Support",services,TRUE,FALSE,TRUE,Operational services family: remaining fDi Markets activities
+Shared Services Centre,services,TRUE,FALSE,TRUE,Operational services family: remaining fDi Markets activities
+Technical Support Centre,services,TRUE,FALSE,TRUE,Operational services family: remaining fDi Markets activities

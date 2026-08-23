@@ -9,7 +9,113 @@ build_fdi <- function(paths, dirs, geography, elections, demographics) {
 
   sector_key <- readr::read_csv(paths$fdi_sector_config, show_col_types = FALSE) |>
     janitor::clean_names() |>
-    dplyr::mutate(source_activity = stringr::str_squish(source_activity))
+    dplyr::mutate(
+      source_activity = stringr::str_squish(source_activity)
+    )
+
+  assert_has_columns(
+    sector_key,
+    c(
+      "source_activity",
+      "standardized_sector",
+      "included_in_total",
+      "included_in_manufacturing",
+      "included_in_services"
+    ),
+    "FDI sector taxonomy"
+  )
+
+  assert_unique_rows(
+    sector_key,
+    "source_activity",
+    "FDI sector taxonomy"
+  )
+
+  if (
+    any(
+      is.na(sector_key$standardized_sector)
+    ) ||
+    any(
+      !sector_key$standardized_sector %in%
+        c(
+          "manufacturing",
+          "services"
+        )
+    )
+  ) {
+    stop(
+      "FDI sector taxonomy must classify every activity as manufacturing or services."
+    )
+  }
+
+  taxonomy_flag_columns <- c(
+    "included_in_total",
+    "included_in_manufacturing",
+    "included_in_services"
+  )
+
+  if (
+    any(
+      is.na(
+        as.matrix(
+          sector_key[
+            taxonomy_flag_columns
+          ]
+        )
+      )
+    )
+  ) {
+    stop(
+      "FDI sector taxonomy inclusion flags may not be missing."
+    )
+  }
+
+  if (
+    any(
+      !sector_key$included_in_total
+    )
+  ) {
+    stop(
+      "Every activity in the approved FDI taxonomy must be included in total FDI."
+    )
+  }
+
+  if (
+    any(
+      sector_key$included_in_manufacturing ==
+        sector_key$included_in_services
+    )
+  ) {
+    stop(
+      "Each FDI activity must belong to exactly one of manufacturing or services."
+    )
+  }
+
+  expected_manufacturing_flag <-
+    sector_key$standardized_sector ==
+      "manufacturing"
+
+  if (
+    any(
+      sector_key$included_in_manufacturing !=
+        expected_manufacturing_flag
+    ) ||
+    any(
+      sector_key$included_in_services !=
+        !expected_manufacturing_flag
+    )
+  ) {
+    stop(
+      "FDI taxonomy sector labels and inclusion flags disagree."
+    )
+  }
+
+  sector_taxonomy_sha256 <-
+    digest::digest(
+      file = paths$fdi_sector_config,
+      algo = "sha256"
+    )
+
   status_key <- readr::read_csv(paths$fdi_status_config, show_col_types = FALSE) |>
     janitor::clean_names() |>
     dplyr::mutate(source_status = stringr::str_squish(source_status))
@@ -57,7 +163,6 @@ build_fdi <- function(paths, dirs, geography, elections, demographics) {
     dplyr::left_join(sector_key, by = "source_activity", relationship = "many-to-one") |>
     dplyr::left_join(status_key, by = "source_status", relationship = "many-to-one") |>
     dplyr::mutate(
-      standardized_sector = dplyr::coalesce(standardized_sector, "other"),
       standardized_status = dplyr::coalesce(standardized_status, "other_or_unknown"),
       coordinate_valid = is.finite(lat) & is.finite(lon) & dplyr::between(lat, 5, 38) & dplyr::between(lon, 65, 100),
       year = dplyr::case_when(
@@ -66,6 +171,31 @@ build_fdi <- function(paths, dirs, geography, elections, demographics) {
         TRUE ~ NA_integer_
       )
     )
+
+  unmapped_activities <- projects |>
+    dplyr::filter(
+      is.na(
+        standardized_sector
+      )
+    ) |>
+    dplyr::count(
+      source_activity,
+      sort = TRUE
+    )
+
+  if (
+    nrow(
+      unmapped_activities
+    ) > 0
+  ) {
+    stop(
+      "Unmapped FDI source activities: ",
+      paste(
+        unmapped_activities$source_activity,
+        collapse = ", "
+      )
+    )
+  }
 
   duplicate_project_ids <- projects |>
     dplyr::count(fdi_project_uid, name = "n_source_rows") |>
@@ -421,6 +551,136 @@ build_fdi <- function(paths, dirs, geography, elections, demographics) {
       year
     )
 
+  for (
+    scope in scope_levels
+  ) {
+    for (
+      status in status_levels
+    ) {
+      total_col <-
+        paste0(
+          "fdi_total_",
+          scope,
+          "_",
+          status,
+          "_n"
+        )
+
+      mfg_col <-
+        paste0(
+          "fdi_mfg_",
+          scope,
+          "_",
+          status,
+          "_n"
+        )
+
+      services_col <-
+        paste0(
+          "fdi_services_",
+          scope,
+          "_",
+          status,
+          "_n"
+        )
+
+      identity_failed <-
+        !is.na(
+          fdi_ac_year[[total_col]]
+        ) &
+        (
+          is.na(
+            fdi_ac_year[[mfg_col]]
+          ) |
+          is.na(
+            fdi_ac_year[[services_col]]
+          ) |
+          fdi_ac_year[[total_col]] !=
+            fdi_ac_year[[mfg_col]] +
+            fdi_ac_year[[services_col]]
+        )
+
+      if (
+        any(
+          identity_failed
+        )
+      ) {
+        stop(
+          "FDI sector identity failed for scope=",
+          scope,
+          ", status=",
+          status,
+          ": total must equal manufacturing plus services."
+        )
+      }
+    }
+  }
+
+  for (
+    sector in sector_levels
+  ) {
+    for (
+      status in status_levels
+    ) {
+      own_col <-
+        paste0(
+          "fdi_",
+          sector,
+          "_own_",
+          status,
+          "_n"
+        )
+
+      adjacent_col <-
+        paste0(
+          "fdi_",
+          sector,
+          "_adjacent_",
+          status,
+          "_n"
+        )
+
+      local_col <-
+        paste0(
+          "fdi_",
+          sector,
+          "_local_",
+          status,
+          "_n"
+        )
+
+      spatial_identity_failed <-
+        !is.na(
+          fdi_ac_year[[local_col]]
+        ) &
+        (
+          is.na(
+            fdi_ac_year[[own_col]]
+          ) |
+          is.na(
+            fdi_ac_year[[adjacent_col]]
+          ) |
+          fdi_ac_year[[local_col]] !=
+            fdi_ac_year[[own_col]] +
+            fdi_ac_year[[adjacent_col]]
+        )
+
+      if (
+        any(
+          spatial_identity_failed
+        )
+      ) {
+        stop(
+          "FDI spatial identity failed for sector=",
+          sector,
+          ", status=",
+          status,
+          ": local must equal own plus adjacent."
+        )
+      }
+    }
+  }
+
   assert_unique_rows(fdi_ac_year, c("ac_uid", "year"), "FDI AC-year data")
 
   project_diagnostics <- projects |>
@@ -429,7 +689,7 @@ build_fdi <- function(paths, dirs, geography, elections, demographics) {
       n_coordinate_valid = dplyr::n_distinct(fdi_project_uid[coordinate_valid]),
       n_coordinate_invalid = dplyr::n_distinct(fdi_project_uid[!coordinate_valid]),
       n_in_election_period = dplyr::n_distinct(fdi_project_uid[!is.na(year)]),
-      n_unknown_sector = dplyr::n_distinct(fdi_project_uid[standardized_sector == "other"]),
+      n_unknown_sector = dplyr::n_distinct(fdi_project_uid[is.na(standardized_sector)]),
       n_unknown_status = dplyr::n_distinct(fdi_project_uid[standardized_status == "other_or_unknown"]),
       .by = c(standardized_status, standardized_sector)
     )
@@ -542,6 +802,52 @@ build_fdi <- function(paths, dirs, geography, elections, demographics) {
       .by = year
     )
 
+  fdi_source_sha256 <-
+    digest::digest(
+      file = paths$fdi,
+      algo = "sha256"
+    )
+
+  build_provenance <- dplyr::bind_rows(
+    tibble::tibble(
+      artifact =
+        "fdi_raw_source",
+      source_file =
+        paths$fdi,
+      sha256 =
+        fdi_source_sha256,
+      n_rows =
+        nrow(
+          raw
+        ),
+      n_activities =
+        NA_integer_,
+      classification_rule =
+        NA_character_
+    ),
+
+    tibble::tibble(
+      artifact =
+        "fdi_sector_taxonomy",
+      source_file =
+        paths$fdi_sector_config,
+      sha256 =
+        sector_taxonomy_sha256,
+      n_rows =
+        NA_integer_,
+      n_activities =
+        nrow(
+          sector_key
+        ),
+      classification_rule =
+        paste(
+          "Manufacturing family = Manufacturing, Extraction,",
+          "Electricity, Recycling; services = all remaining",
+          "approved fDi Markets activities"
+        )
+    )
+  )
+
   write_csv_checked(projects, file.path(dirs$intermediate_dir, "fdi_projects_clean.csv"), "fdi_project_uid")
   write_csv_checked(exposure, file.path(dirs$intermediate_dir, "fdi_project_exposure.csv"), c("fdi_project_uid", "exposed_ac_uid", "exposure_scope"))
   write_csv_checked(fdi_ac_year, file.path(dirs$intermediate_dir, "fdi_ac_year.csv"), c("ac_uid", "year"))
@@ -560,6 +866,13 @@ build_fdi <- function(paths, dirs, geography, elections, demographics) {
       "fdi_spatial_support_diagnostics.csv"
     )
   )
+  write_csv_checked(
+    build_provenance,
+    file.path(
+      dirs$diagnostic_dir,
+      "fdi_build_provenance.csv"
+    )
+  )
   readr::write_csv(sector_key, file.path(dirs$final_dir, "fdi_sector_taxonomy.csv"))
   readr::write_csv(status_key, file.path(dirs$final_dir, "fdi_status_taxonomy.csv"))
 
@@ -570,7 +883,8 @@ build_fdi <- function(paths, dirs, geography, elections, demographics) {
     diagnostics = list(
       projects = project_diagnostics,
       exposure = exposure_diagnostics,
-      spatial_support = spatial_support_diagnostics
+      spatial_support = spatial_support_diagnostics,
+      provenance = build_provenance
     )
   )
 }
