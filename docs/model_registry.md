@@ -397,19 +397,41 @@ regressors.
 
 ### Controls
 
-The canonical control set should be intentionally small and pre-specified.
+The canonical primary AC-level control set is intentionally small and
+pre-specified:
 
-Current retained contextual controls include:
+- `proxy_ac_pop`: 2011 constituency population using the frozen direct-plus-2011-only-imputation rule
+- `sc_pop_share`: 2011 SC population share using the same source hierarchy
+- `st_pop_share`: 2011 ST population share using the same source hierarchy
 
-- 2011 constituency population using the frozen direct-plus-2011-only-imputation rule
-- land area
-- 2011 SC population share using the same source hierarchy
-- 2011 ST population share using the same source hierarchy
-- employment intensity
-- secondary-education share (`ed_sec_share`)
+Land area, including `con08_land_area`, is not included in the canonical
+AC-level control set.
 
-SECC consumption, household, and tax variables are not part of the intended
-primary control set.
+The expanded-control robustness specification adds both of the following
+variables jointly to the primary control set:
+
+- `employment_per_total_population`
+- `ed_sec_share`
+
+Do not treat employment-only or education-only specifications as separate
+canonical expanded-control robustness variants.
+
+The available employment-intensity measure uses 2013 Economic Census
+employment, while `ed_sec_share` comes from SECC 2012. Both are therefore
+measured during the 2009-2014 FDI exposure window rather than clearly prior
+to treatment. They are retained as an expanded-control robustness check
+rather than as primary controls.
+
+Because `ed_sec_share` is not observed for every AC, the expanded-control
+robustness must report its complete-case sample size and the corresponding
+reduction relative to the primary sample.
+
+Do not use `employment_per_population_15_64` in the current canonical
+analysis. Reconsider it only if its underlying missing-data problem is
+separately resolved and the model registry is explicitly revised.
+
+SECC consumption, household, tax, and land-area variables are not part of
+the intended primary AC-level control set.
 
 ### Inference
 
