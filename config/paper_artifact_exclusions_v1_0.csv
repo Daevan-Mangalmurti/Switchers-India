@@ -1,0 +1,8 @@
+item,status,replacement_or_decision,reason
+R/31d_unknown_duration_migration_sensitivity_v1_0.R,Do not use,No replacement analysis requested,Authors explicitly chose not to pursue the unknown-duration migration sensitivity
+outputs/manufacturing_marginal_effects_v1_0/07_main_candidate_manufacturing_marginal_effects_1pp.pdf,Superseded,Figure 5 from R29b,Four-panel raw-plus-log candidate superseded by raw-only two-panel main figure
+config/r30_demographic_moderator_registry_v1_0.csv,Superseded,config/r31_demographic_context_registry_v1_0.csv,R30 registry predates corrected migration lineage and demographic-context freeze
+outputs/r30_specification_registry_freeze_v1_0/02_frozen_demographic_context_registry.csv,Superseded,config/r31_demographic_context_registry_v1_0.csv,R31 is authoritative for demographic-context moderators
+outputs/r30_pre_employment_regeneration_snapshot_v1_0,Internal QA only,Current regenerated R30 outputs,Snapshot exists solely to certify employment-correction invariance
+outputs/r31_2001_denominator_migration_context_v1_0,Superseded analytical branch,outputs/r31_full_lineage_migration_context_v1_0,Full-lineage R31a7 construction supersedes the incomplete earlier migration mapping
+R/31a6_construct_and_audit_2001_2011_migration_change_v1_0.R,Superseded analytical branch,R/31a7_freeze_full_lineage_migration_context_v1_0.R,R31a7 supplies the authoritative corrected lineage-based migration context

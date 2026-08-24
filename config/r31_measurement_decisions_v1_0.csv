@@ -1,0 +1,8 @@
+item,status,replacement_or_decision,reason
+mig_total_upto_2001_share_ac_pop,Retired,migrant_share_2001_proxy,"Old AC allocation divided district migrant counts by an incompatible AC population denominator"
+male_mig_total_upto_2001_share_ac_pop,Retired,male_migrant_share_2001_proxy,"Same denominator problem as total established migration"
+d_mig_prior_5yr_share_ac_pop_2009_2014_pp,Retired,d_migrant_share_2001_2011_pp,"Old variable compares election-relative arrival cohorts rather than 2001-2011 migrant-stock shares"
+d_male_mig_prior_5yr_share_ac_pop_2009_2014_pp,Retired,d_male_migrant_share_2001_2011_pp,"Male analogue of the retired election-relative arrival-cohort measure"
+R31a4 migration context,Superseded,R31a7 full-lineage migration context,"R31a4 numerator used an incomplete AC-facing district-to-lineage map"
+R31a6 migration change,Superseded,R31a7 full-lineage migration context,"R31a6 attempted to reconstruct canonical lineage geography indirectly"
+unknown-duration migrants,Sensitivity,reported-total 2011 migration change,"Preferred change uses known-duration bins; reported-total construction retained as measurement sensitivity"

@@ -69,9 +69,17 @@ suppressPackageStartupMessages({
 
 # ---- Input files -------------------------------------------------------------
 
-ivs_path <- paste0(
-  "~/Downloads/Lab for Globalization and Shared Prosperity/",
-  "Status Threat/Status Threat Data/",
+status_threat_data_dir <-
+  Sys.getenv(
+    "STATUS_THREAT_DATA_DIR",
+    unset = file.path(
+      "Status Threat",
+      "Status Threat Data"
+    )
+  )
+
+ivs_path <- file.path(
+  status_threat_data_dir,
   "Integrated_values_surveys_1981-2022.dta"
 )
 
@@ -81,18 +89,16 @@ ivs_path <- paste0(
 #   evs_id      ...
 #   party_id    ...
 #   party_id_2  ...
-fr_codes_path <- paste0(
-  "~/Downloads/Lab for Globalization and Shared Prosperity/",
-  "Status Threat/Status Threat Data/",
+fr_codes_path <- file.path(
+  status_threat_data_dir,
   "far_right_party_codes.csv"
 )
 
 # Reviewed PopuList/WVS/EVS crosswalk created for this project. It remains
 # useful as a manually reviewed supplement, especially for WVS7, which is not
 # covered by PPC v1.1.
-populist_crosswalk_path <- paste0(
-  "~/Downloads/Lab for Globalization and Shared Prosperity/",
-  "Status Threat/Status Threat Data/",
+populist_crosswalk_path <- file.path(
+  status_threat_data_dir,
   "populist_far_right_wvs_evs_crosswalk.csv"
 )
 
@@ -100,9 +106,8 @@ populist_crosswalk_path <- paste0(
 # far-right interval farright_startnobl:farright_endnobl rather than treating a
 # party as far right in every survey year merely because it is ever classified
 # as far right.
-populist_raw_path <- paste0(
-  "~/Downloads/Lab for Globalization and Shared Prosperity/",
-  "Status Threat/Status Threat Data/",
+populist_raw_path <- file.path(
+  status_threat_data_dir,
   "The PopuList 4.0.csv"
 )
 
@@ -112,9 +117,8 @@ populist_raw_path <- paste0(
 # etc.). IMPORTANT: PPC source-file numeric codes are not assumed to equal IVS
 # harmonized numeric codes. When the numeric join fails, a conservative label
 # bridge is attempted before the observation is treated as PPC-unmatched.
-ppc_path <- paste0(
-  "~/Downloads/Lab for Globalization and Shared Prosperity/",
-  "Status Threat/Status Threat Data/",
+ppc_path <- file.path(
+  status_threat_data_dir,
   "PPC_v1_1.xlsx"
 )
 

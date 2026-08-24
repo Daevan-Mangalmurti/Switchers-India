@@ -1,0 +1,9 @@
+moderator_id,variable,label,domain,role,orientation
+MUSLIM2001,muslim_share_2001_dist_proxy,Muslim population share 2001,Muslim composition,Primary anchor,1
+MUSLIM_CHANGE,d_muslim_share_2001_2011_pp,Change in Muslim population share 2001-2011,Muslim composition,Alternative demographic context,1
+MIG_ESTABLISHED,mig_total_upto_2001_share_ac_pop,Established migrant share 2001,Migration,Alternative demographic context,1
+MIG_CHANGE,d_mig_prior_5yr_share_ac_pop_2009_2014_pp,Change in prior-5-year migrant share,Migration,Alternative demographic context,1
+MALE_MIG_ESTABLISHED,male_mig_total_upto_2001_share_ac_pop,Established male migrant share 2001,Migration,Alternative demographic context,1
+MALE_MIG_CHANGE,d_male_mig_prior_5yr_share_ac_pop_2009_2014_pp,Change in male prior-5-year migrant share,Migration,Alternative demographic context,1
+BENGALI_BHOJPURI2001,target_bengali_bhojpuri_share_2001_dist_proxy,Target Bengali/Bhojpuri population share 2001,Language-based outsider exposure,Alternative demographic context,1
+BENGALI_BHOJPURI_CHANGE,d_target_bengali_bhojpuri_share_2001_2011_pp,Change in target Bengali/Bhojpuri population share 2001-2011,Language-based outsider exposure,Alternative demographic context,1

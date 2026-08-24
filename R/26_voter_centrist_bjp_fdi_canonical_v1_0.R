@@ -144,6 +144,54 @@ require_columns <- function(
   }
 }
 
+corrected_employment_path <-
+  "outputs/r31_corrected_employment_control_v1_0/04_corrected_employment_by_ac.rds"
+
+if (
+  !file.exists(
+    corrected_employment_path
+  )
+) {
+  stop(
+    "Corrected employment-control artifact is missing."
+  )
+}
+
+corrected_employment <-
+  readRDS(
+    corrected_employment_path
+  ) |>
+  select(
+    ac_uid,
+    employment_intensity_ec13_per_2011_population
+  )
+
+if (
+  anyDuplicated(
+    corrected_employment$ac_uid
+  ) >
+    0L
+) {
+  stop(
+    "Corrected employment-control artifact is not unique by ac_uid."
+  )
+}
+
+respondents <-
+  respondents |>
+  select(
+    -any_of(
+      "employment_intensity_ec13_per_2011_population"
+    )
+  ) |>
+  left_join(
+    corrected_employment,
+    by =
+      "ac_uid",
+    relationship =
+      "many-to-one"
+  )
+
 individual_controls <-
   c(
     "religion_group",
@@ -160,7 +208,7 @@ primary_ac_controls <-
 
 expanded_ac_controls <-
   c(
-    "employment_per_total_population",
+    "employment_intensity_ec13_per_2011_population",
     "ed_sec_share"
   )
 
@@ -380,10 +428,10 @@ respondents <-
         st_pop_share
       ),
 
-    employment_share_pp =
+    employment_intensity_ec13_pp =
       100 *
       as.numeric(
-        employment_per_total_population
+        employment_intensity_ec13_per_2011_population
       ),
 
     ed_sec_share_pp =
@@ -698,6 +746,28 @@ sample_center <-
       "Center"
   )
 
+sample_center_primary <-
+  sample_center |>
+  filter(
+    is.finite(
+      fdi_total_current
+    ),
+    is.finite(
+      fdi_total_baseline
+    )
+  )
+
+if (
+  nrow(
+    sample_center_primary
+  ) !=
+    1763L
+) {
+  stop(
+    "Frozen V01-comparable temporal-diagnostic sample is not 1763 voters."
+  )
+}
+
 sample_left <-
   base_common |>
   filter(
@@ -724,6 +794,8 @@ sample_pools <-
   list(
     center =
       sample_center,
+    center_primary =
+      sample_center_primary,
     left =
       sample_left,
     right =
@@ -746,7 +818,7 @@ primary_control_terms <-
 expanded_control_terms <-
   c(
     primary_control_terms,
-    "employment_share_pp",
+    "employment_intensity_ec13_pp",
     "ed_sec_share_pp"
   )
 
@@ -796,7 +868,15 @@ spec_registry <-
 
     "V11", "Prior-weight sensitivity (not survey-design estimator)", "center", "Total", "Local", "Raw", "60-month current + baseline",
     "muslim * fdi_total_current + muslim * fdi_total_baseline",
-    FALSE, TRUE, "fdi_total_current"
+    FALSE, TRUE, "fdi_total_current",
+
+    "V12", "Temporal parameterization sensitivity: current only", "center_primary", "Total", "Local", "Raw", "60-month current only",
+    "muslim * fdi_total_current",
+    FALSE, FALSE, "fdi_total_current",
+
+    "V13", "Temporal parameterization sensitivity: baseline only", "center_primary", "Total", "Local", "Raw", "60-month baseline only",
+    "muslim * fdi_total_baseline",
+    FALSE, FALSE, "fdi_total_baseline"
   )
 
 write_csv(
@@ -1495,16 +1575,25 @@ focal_coefficients <-
         ) |>
         mutate(
           focal_interpretation =
-            if_else(
+            case_when(
               model_id ==
-                "V10",
-              "Center-reference Muslim x current-FDI interaction in all-ideology model",
-              if_else(
-                model_id ==
-                  "V07",
+                "V10" ~
+                "Center-reference Muslim x current-FDI interaction in all-ideology model",
+
+              model_id ==
+                "V07" ~
                 "Muslim share x 21-month FDI change",
+
+              model_id ==
+                "V12" ~
+                "Muslim share x current-only 2009-2014 FDI exposure",
+
+              model_id ==
+                "V13" ~
+                "Muslim share x baseline-only 2004-2009 FDI exposure",
+
+              TRUE ~
                 "Muslim share x focal current FDI exposure"
-              )
             )
         )
     }
@@ -1517,6 +1606,68 @@ write_csv(
     "04_focal_interaction_coefficients.csv"
   )
 )
+
+temporal_parameterization_sensitivity <-
+  focal_coefficients |>
+  filter(
+    model_id %in%
+      c(
+        "V01",
+        "V12",
+        "V13"
+      )
+  ) |>
+  mutate(
+    temporal_parameterization =
+      case_when(
+        model_id ==
+          "V01" ~
+          "Primary current + baseline: current interaction",
+
+        model_id ==
+          "V12" ~
+          "Current only",
+
+        model_id ==
+          "V13" ~
+          "Baseline only"
+      )
+  ) |>
+  select(
+    temporal_parameterization,
+    model_id,
+    role,
+    term,
+    estimate,
+    std_error,
+    conf_low,
+    conf_high,
+    p_value_normal_approx,
+    sample_key
+  ) |>
+  left_join(
+    model_metadata |>
+      select(
+        model_id,
+        n_voters,
+        n_ac,
+        n_states,
+        n_dropped_fixed_columns
+      ),
+    by =
+      "model_id",
+    relationship =
+      "one-to-one"
+  )
+
+write_csv(
+  temporal_parameterization_sensitivity,
+  file.path(
+    output_dir,
+    "15_temporal_parameterization_sensitivity.csv"
+  )
+)
+
 
 random_effect_stats <- function(
   fit,

@@ -1,0 +1,11 @@
+fdi_spec_id,sector,family,geography,functional_form,current_var,baseline_var,source_artifact,role,design_status
+T_LOCAL_RAW,Total,60-month current + baseline,Local,Raw,fdi_total_local_all_pc100k_2014,fdi_total_local_all_pc100k_2009,canonical_ac_change,Primary exposure,Primary
+T_LOCAL_LOG,Total,60-month current + baseline,Local,log1p,log1p_fdi_total_local_all_pc100k_2014,log1p_fdi_total_local_all_pc100k_2009,canonical_ac_change,Functional-form robustness,Prespecified robustness
+T_OWN_RAW,Total,60-month current + baseline,Own AC,Raw,fdi_total_own_all_pc100k_2014,fdi_total_own_all_pc100k_2009,canonical_ac_change,Spatial robustness,Prespecified robustness
+T_21M_RAW,Total,21-month change + early baseline,Local,Raw,d_fdi_total_local_21m_pc100k,fdi_total_local_early21_pc100k,canonical_ac_change,Temporal-window robustness,Prespecified robustness
+T_12M_RAW,Total,12-month change + early baseline,Local,Raw,d_fdi_total_local_12m_pc100k,fdi_total_local_early12_pc100k,post_primary_12m,Temporal-window robustness,Post-estimation robustness
+M_LOCAL_RAW,Manufacturing,60-month current + baseline,Local,Raw,fdi_mfg_local_all_pc100k_2014,fdi_mfg_local_all_pc100k_2009,canonical_ac_change,Core sector exposure,Prespecified sector comparison
+M_LOCAL_LOG,Manufacturing,60-month current + baseline,Local,log1p,log1p_fdi_mfg_local_all_pc100k_2014,log1p_fdi_mfg_local_all_pc100k_2009,canonical_ac_change,Functional-form robustness,Prespecified sector comparison
+M_OWN_RAW,Manufacturing,60-month current + baseline,Own AC,Raw,fdi_mfg_own_all_pc100k_2014,fdi_mfg_own_all_pc100k_2009,canonical_ac_change,Spatial robustness,Prespecified sector comparison
+M_21M_RAW,Manufacturing,21-month change + early baseline,Local,Raw,d_fdi_mfg_local_21m_pc100k,fdi_mfg_local_early21_pc100k,canonical_ac_change,Temporal-window robustness,Prespecified sector comparison
+M_12M_RAW,Manufacturing,12-month change + early baseline,Local,Raw,d_fdi_mfg_local_12m_pc100k,fdi_mfg_local_early12_pc100k,post_primary_12m,Temporal-window robustness,Post-estimation robustness

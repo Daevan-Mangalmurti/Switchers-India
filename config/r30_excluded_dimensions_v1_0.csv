@@ -1,0 +1,13 @@
+dimension,status,reason
+Services FDI,Separate appendix results,Do not add a third sector to compact main robustness figure
+Recent-5-year migration,Excluded from compact universe,Not part of retained compact moderator set
+Recent-vs-prior migration acceleration,Excluded from compact universe,Not part of retained compact moderator set
+General non-local-language measures,Excluded from compact universe,Targeted Bengali/Bhojpuri measure is retained language-based outsider proxy
+Migration density measures,Excluded from compact universe,Not part of retained compact moderator set
+Migration ratios,Excluded from compact universe,Not part of retained compact moderator set
+Neighbor migration measures,Excluded from compact universe,Not part of retained compact moderator set
+Positive-FDI-only sample,Excluded,Would introduce a post-estimation sample restriction
+New ideology-cell minimum N threshold,Excluded,No arbitrary cell-size cutoff
+Left or Right BJP-share outcome,Separate heterogeneity appendix,Changes dependent variable and estimand
+Official BJP vote-share triple interaction,Separate appendix diagnostic,Different contextual estimand
+12-month late level plus early level as separate curve row,Excluded as redundant,Algebraically equivalent to 12-month change plus early baseline

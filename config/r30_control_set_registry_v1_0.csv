@@ -1,0 +1,5 @@
+control_set,level,controls,role
+Primary,AC,"proxy_ac_pop + sc_pop_share + st_pop_share",Primary controls
+Expanded,AC,"proxy_ac_pop + sc_pop_share + st_pop_share + employment_intensity_ec13_per_2011_population + ed_sec_share",Expanded robustness
+Primary,Voter,"ac_pop_100k + sc_share_pp + st_share_pp + religion_x + caste_x + education_x",Primary controls
+Expanded,Voter,"ac_pop_100k + sc_share_pp + st_share_pp + religion_x + caste_x + education_x + employment_intensity_ec13_pp + ed_sec_share_pp",Expanded robustness

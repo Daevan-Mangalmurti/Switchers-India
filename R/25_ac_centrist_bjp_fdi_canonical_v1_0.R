@@ -131,6 +131,69 @@ require_columns <- function(
   }
 }
 
+corrected_employment_path <-
+  "outputs/r31_corrected_employment_control_v1_0/04_corrected_employment_by_ac.rds"
+
+if (
+  !file.exists(
+    corrected_employment_path
+  )
+) {
+  stop(
+    "Corrected employment-control artifact is missing."
+  )
+}
+
+corrected_employment <-
+  readRDS(
+    corrected_employment_path
+  ) |>
+  select(
+    ac_uid,
+    employment_intensity_ec13_per_2011_population
+  )
+
+if (
+  anyDuplicated(
+    corrected_employment$ac_uid
+  ) >
+    0L
+) {
+  stop(
+    "Corrected employment-control artifact is not unique by ac_uid."
+  )
+}
+
+ideology <-
+  ideology |>
+  select(
+    -any_of(
+      "employment_intensity_ec13_per_2011_population"
+    )
+  ) |>
+  left_join(
+    corrected_employment,
+    by =
+      "ac_uid",
+    relationship =
+      "many-to-one"
+  )
+
+ac_year <-
+  ac_year |>
+  select(
+    -any_of(
+      "employment_intensity_ec13_per_2011_population"
+    )
+  ) |>
+  left_join(
+    corrected_employment,
+    by =
+      "ac_uid",
+    relationship =
+      "many-to-one"
+  )
+
 primary_controls <-
   c(
     "proxy_ac_pop",
@@ -141,7 +204,7 @@ primary_controls <-
 expanded_controls <-
   c(
     primary_controls,
-    "employment_per_total_population",
+    "employment_intensity_ec13_per_2011_population",
     "ed_sec_share"
   )
 
@@ -352,7 +415,7 @@ primary_funnel <-
       s6 |>
       filter(
         !is.na(
-          employment_per_total_population
+          employment_intensity_ec13_per_2011_population
         ),
         !is.na(
           ed_sec_share
@@ -1052,6 +1115,146 @@ model_metadata[["AC12"]] <-
       )
   )
 
+ac13_formula <-
+  as.formula(
+    paste0(
+      "y ~ muslim * fdi_current + ",
+      paste(
+        primary_controls,
+        collapse = " + "
+      ),
+      " | state_no"
+    )
+  )
+
+models[["AC13"]] <-
+  feols(
+    ac13_formula,
+    data =
+      primary_sample,
+    vcov =
+      ~ pc_cluster_id,
+    warn =
+      TRUE,
+    notes =
+      TRUE
+  )
+
+model_samples[["AC13"]] <-
+  primary_sample
+
+model_metadata[["AC13"]] <-
+  tibble(
+    model_id =
+      "AC13",
+    role =
+      "Temporal parameterization sensitivity: current only",
+    family =
+      "60-month current only",
+    sector =
+      "Total",
+    geography =
+      "Local",
+    functional_form =
+      "Raw",
+    current_var =
+      "fdi_total_local_all_pc100k_2014",
+    baseline_var =
+      NA_character_,
+    control_set =
+      "Primary",
+    outcome =
+      "weighted_share_voted_bjp",
+    moderator =
+      "muslim_share_2001_dist_proxy",
+    fixed_effect =
+      "state_no",
+    vcov =
+      "PC clustered: pc_cluster_id",
+    n =
+      nrow(
+        primary_sample
+      ),
+    n_states =
+      n_distinct(
+        primary_sample$state_no
+      ),
+    n_pc_clusters =
+      n_distinct(
+        primary_sample$pc_cluster_id
+      )
+  )
+
+ac14_formula <-
+  as.formula(
+    paste0(
+      "y ~ muslim * fdi_baseline + ",
+      paste(
+        primary_controls,
+        collapse = " + "
+      ),
+      " | state_no"
+    )
+  )
+
+models[["AC14"]] <-
+  feols(
+    ac14_formula,
+    data =
+      primary_sample,
+    vcov =
+      ~ pc_cluster_id,
+    warn =
+      TRUE,
+    notes =
+      TRUE
+  )
+
+model_samples[["AC14"]] <-
+  primary_sample
+
+model_metadata[["AC14"]] <-
+  tibble(
+    model_id =
+      "AC14",
+    role =
+      "Temporal parameterization sensitivity: baseline only",
+    family =
+      "60-month baseline only",
+    sector =
+      "Total",
+    geography =
+      "Local",
+    functional_form =
+      "Raw",
+    current_var =
+      NA_character_,
+    baseline_var =
+      "fdi_total_local_all_pc100k_2009",
+    control_set =
+      "Primary",
+    outcome =
+      "weighted_share_voted_bjp",
+    moderator =
+      "muslim_share_2001_dist_proxy",
+    fixed_effect =
+      "state_no",
+    vcov =
+      "PC clustered: pc_cluster_id",
+    n =
+      nrow(
+        primary_sample
+      ),
+    n_states =
+      n_distinct(
+        primary_sample$state_no
+      ),
+    n_pc_clusters =
+      n_distinct(
+        primary_sample$pc_cluster_id
+      )
+  )
+
 model_metadata <-
   bind_rows(
     model_metadata
@@ -1290,6 +1493,106 @@ write_csv(
     "04_focal_interaction_coefficients.csv"
   )
 )
+
+ac01_temporal_term <-
+  find_interaction_term(
+    names(
+      coef(
+        models[["AC01"]]
+      )
+    ),
+    c(
+      "muslim",
+      "fdi_current"
+    )
+  )
+
+ac13_temporal_term <-
+  find_interaction_term(
+    names(
+      coef(
+        models[["AC13"]]
+      )
+    ),
+    c(
+      "muslim",
+      "fdi_current"
+    )
+  )
+
+ac14_temporal_term <-
+  find_interaction_term(
+    names(
+      coef(
+        models[["AC14"]]
+      )
+    ),
+    c(
+      "muslim",
+      "fdi_baseline"
+    )
+  )
+
+temporal_parameterization_sensitivity <-
+  bind_rows(
+    coefficients |>
+      filter(
+        model_id ==
+          "AC01",
+        term ==
+          ac01_temporal_term
+      ) |>
+      mutate(
+        temporal_parameterization =
+          "Primary current + baseline: current interaction"
+      ),
+
+    coefficients |>
+      filter(
+        model_id ==
+          "AC13",
+        term ==
+          ac13_temporal_term
+      ) |>
+      mutate(
+        temporal_parameterization =
+          "Current only"
+      ),
+
+    coefficients |>
+      filter(
+        model_id ==
+          "AC14",
+        term ==
+          ac14_temporal_term
+      ) |>
+      mutate(
+        temporal_parameterization =
+          "Baseline only"
+      )
+  ) |>
+  select(
+    temporal_parameterization,
+    model_id,
+    role,
+    term,
+    estimate,
+    std_error,
+    conf_low,
+    conf_high,
+    p_value,
+    n,
+    vcov
+  )
+
+write_csv(
+  temporal_parameterization_sensitivity,
+  file.path(
+    output_dir,
+    "11_temporal_parameterization_sensitivity.csv"
+  )
+)
+
 
 primary_model <-
   models[["AC01"]]
@@ -2039,7 +2342,7 @@ primary_audit_columns <-
       "proxy_ac_pop",
       "sc_pop_share",
       "st_pop_share",
-      "employment_per_total_population",
+      "employment_intensity_ec13_per_2011_population",
       "ed_sec_share"
     ),
     names(
