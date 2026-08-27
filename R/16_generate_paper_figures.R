@@ -1,7 +1,7 @@
 # ============================================================
 # 16_generate_paper_figures.R
 # Generates numbered paper figures 01-17 and specification-curve family 33.
-# Source 15_prepare_paper_outputs.R first (or run 18_run_paper_output_pipeline.R).
+# Historical R15-R17 figure stage. For the current publication architecture, use the registered R25-R41 pipeline documented in README.md.
 # ============================================================
 
 if (!exists("paper_dirs")) {
